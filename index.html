@@ -2,695 +2,304 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="theme-color" content="#1a73e8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>库存盘点系统</title>
+    <!-- 使用国内可访问的 Supabase CDN（若无法加载可换成 unpkg） -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
-        :root {
-            --primary: #1a73e8;
-            --primary-dark: #1557b0;
-            --pcb-color: #4285f4;
-            --socket-color: #0d904f;
-            --kit-color: #e8710a;
-            --bg: #f0f2f5;
-            --card-bg: #ffffff;
-            --text: #1f1f1f;
-            --text-secondary: #5f6368;
-            --border: #e0e0e0;
-            --danger: #d93025;
-            --danger-hover: #b3261e;
-            --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-            --radius: 12px;
-            --radius-sm: 8px;
-            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            --safe-bottom: env(safe-area-inset-bottom, 16px);
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-            background: var(--bg); color: var(--text); min-height: 100vh; -webkit-tap-highlight-color: transparent;
-            -webkit-font-smoothing: antialiased; user-select: none; padding-bottom: calc(80px + var(--safe-bottom));
-        }
-        .header {
-            background: var(--card-bg); border-bottom: 1px solid var(--border); padding: 12px 16px;
-            position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow);
-            display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-        }
-        .header-left { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-        .logo-icon { width: 38px; height: 38px; background: var(--primary); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fff; flex-shrink: 0; }
-        .header-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; white-space: nowrap; }
-        .header-actions { display: flex; gap: 8px; flex-shrink: 0; }
-        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 16px; border-radius: 20px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: var(--transition); white-space: nowrap; letter-spacing: -0.2px; -webkit-tap-highlight-color: transparent; min-height: 40px; }
-        .btn:active { transform: scale(0.96); transition: 0.1s; }
-        .btn-primary { background: var(--primary); color: #fff; }
-        .btn-primary:active { background: var(--primary-dark); }
-        .btn-outline { background: transparent; border: 1.5px solid var(--border); color: var(--text); }
-        .btn-outline:active { background: #f5f5f5; }
-        .btn-export { background: #fff; border: 1.5px solid #34a853; color: #1e7e34; }
-        .btn-export:active { background: #e6f4ea; }
-        .btn-icon { width: 40px; height: 40px; padding: 0; border-radius: 50%; font-size: 18px; }
-        .stats-bar { display: flex; gap: 8px; padding: 12px 16px; overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-        .stats-bar::-webkit-scrollbar { display: none; }
-        .stat-chip { flex-shrink: 0; padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; letter-spacing: -0.2px; cursor: pointer; transition: var(--transition); scroll-snap-align: start; border: 2px solid transparent; background: var(--card-bg); box-shadow: var(--shadow); display: flex; align-items: center; gap: 5px; white-space: nowrap; }
-        .stat-chip.active { border-color: var(--primary); background: #e8f0fe; color: var(--primary); }
-        .stat-chip:active { transform: scale(0.95); }
-        .stat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .stat-dot.pcb { background: var(--pcb-color); } .stat-dot.socket { background: var(--socket-color); } .stat-dot.kit { background: var(--kit-color); } .stat-dot.all { background: #666; }
-        .stat-count { color: var(--text-secondary); font-weight: 400; font-size: 12px; }
-        .search-container { padding: 0 16px 12px; }
-        .search-input-wrap { position: relative; display: flex; align-items: center; background: var(--card-bg); border-radius: 24px; box-shadow: var(--shadow); border: 1.5px solid transparent; transition: var(--transition); overflow: hidden; }
-        .search-input-wrap:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
-        .search-icon { position: absolute; left: 14px; font-size: 16px; pointer-events: none; opacity: 0.5; }
-        .search-input { flex: 1; border: none; padding: 12px 14px 12px 38px; font-size: 15px; background: transparent; outline: none; color: var(--text); min-width: 0; letter-spacing: -0.2px; }
-        .search-input::placeholder { color: #999; }
-        .search-clear { background: none; border: none; padding: 10px 14px; cursor: pointer; font-size: 16px; color: #999; display: none; flex-shrink: 0; }
-        .search-clear.visible { display: block; }
-        .search-clear:active { color: #333; }
-        .refresh-indicator { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px; font-size: 11px; color: var(--text-secondary); letter-spacing: -0.2px; }
-        .refresh-dot { width: 6px; height: 6px; border-radius: 50%; background: #34a853; animation: pulse-dot 2s ease-in-out infinite; }
-        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
-        .items-container { padding: 0 12px; display: grid; grid-template-columns: 1fr; gap: 10px; }
-        @media (min-width:600px) { .items-container { grid-template-columns: repeat(2,1fr); padding: 0 16px; gap: 12px; } }
-        @media (min-width:960px) { .items-container { grid-template-columns: repeat(3,1fr); max-width:1100px; margin:0 auto; padding: 0 20px; gap: 14px; } }
-        .item-card { background: var(--card-bg); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); cursor: pointer; transition: var(--transition); position: relative; border: 1.5px solid transparent; display: flex; flex-direction: column; gap: 8px; animation: fadeInUp 0.3s ease forwards; -webkit-tap-highlight-color: transparent; }
-        .item-card:active { transform: scale(0.985); transition: 0.1s; box-shadow: var(--shadow-lg); }
-        .item-card:hover { box-shadow: var(--shadow-lg); border-color: #d0d0d0; }
-        @keyframes fadeInUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-        .item-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-        .item-type-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase; flex-shrink: 0; color: #fff; }
-        .badge-pcb { background: var(--pcb-color); } .badge-socket { background: var(--socket-color); } .badge-kit { background: var(--kit-color); }
-        .item-actions { display: flex; gap: 4px; flex-shrink: 0; }
-        .item-action-btn { background: none; border: none; font-size: 16px; cursor: pointer; padding: 4px 6px; border-radius: 50%; opacity: 0.5; transition: var(--transition); line-height: 1; }
-        .item-action-btn.move-btn { color: #1a73e8; }
-        .item-action-btn.delete-btn { color: var(--danger); }
-        .item-action-btn:active { opacity: 1; background: #f0f0f0; }
-        .item-name { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.3; word-break: break-word; }
-        .item-model { font-size: 13px; color: var(--text-secondary); letter-spacing: -0.2px; word-break: break-word; }
-        .item-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--text-secondary); }
-        .item-meta span { display: inline-flex; align-items: center; gap: 3px; }
-        .item-location { color: #1a73e8; font-weight: 500; }
-        .item-qty { font-weight: 700; color: var(--text); background: #f1f3f4; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
-        .item-time { font-size: 11px; color: #999; }
-        .item-image { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-top: 4px; background: #f5f5f5; }
-        .empty-state { text-align: center; padding: 48px 20px; grid-column: 1/-1; color: var(--text-secondary); }
-        .empty-icon { font-size: 64px; display: block; margin-bottom: 16px; opacity: 0.6; }
-        .empty-text { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
-        .empty-sub { font-size: 13px; opacity: 0.7; }
-        .fab { position: fixed; bottom: calc(24px + var(--safe-bottom)); right: 20px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: #fff; border: none; font-size: 28px; cursor: pointer; box-shadow: 0 4px 16px rgba(26,115,232,0.4); z-index: 90; display: flex; align-items: center; justify-content: center; transition: var(--transition); }
-        .fab:active { transform: scale(0.9); }
-        @media (min-width:768px) { .fab { bottom:28px; right:32px; width:60px; height:60px; font-size:30px; } }
-        .modal-overlay { position: fixed; inset:0; background: rgba(0,0,0,0.5); z-index:200; display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 0.2s ease; }
-        @media (min-width:600px) { .modal-overlay { align-items: center; } }
-        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-        .modal { background: var(--card-bg); border-radius: 20px 20px 0 0; width:100%; max-width:500px; max-height:90vh; overflow-y:auto; padding:20px 20px calc(20px + var(--safe-bottom)); animation: slideUp 0.3s cubic-bezier(0.32,0.72,0,1); box-shadow: var(--shadow-lg); }
-        @media (min-width:600px) { .modal { border-radius:var(--radius); margin:20px; padding:24px; max-height:85vh; } }
-        @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
-        .modal-handle { width:36px; height:4px; background:#d0d0d0; border-radius:2px; margin:0 auto 16px; }
-        @media (min-width:600px) { .modal-handle { display:none; } }
-        .modal-title { font-size:18px; font-weight:700; margin-bottom:18px; text-align:center; }
+        :root { --primary: #1a73e8; --bg: #f0f2f5; --card: #fff; --text: #1f1f1f; --border: #e0e0e0; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: -apple-system, 'PingFang SC', sans-serif; background:var(--bg); padding-bottom:80px; }
+        .header { background:var(--card); padding:12px 16px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.1); position:sticky; top:0; }
+        .btn { padding:8px 16px; border-radius:20px; border:1.5px solid var(--border); font-weight:600; background:var(--card); cursor:pointer; }
+        .btn.primary { background:var(--primary); color:#fff; border:none; }
+        .stats { display:flex; gap:8px; padding:12px; overflow-x:auto; }
+        .stat { padding:6px 14px; border-radius:20px; background:var(--card); box-shadow:0 1px 3px rgba(0,0,0,0.08); cursor:pointer; white-space:nowrap; }
+        .stat.active { background:#e8f0fe; color:var(--primary); }
+        .search { padding:0 16px 12px; }
+        .search input { width:100%; padding:10px 16px; border-radius:24px; border:1.5px solid var(--border); font-size:15px; }
+        .items { padding:0 12px; display:grid; gap:10px; }
+        @media(min-width:600px){ .items{grid-template-columns:repeat(2,1fr);} }
+        @media(min-width:960px){ .items{grid-template-columns:repeat(3,1fr); max-width:1100px; margin:0 auto; } }
+        .card { background:var(--card); border-radius:12px; padding:14px; box-shadow:0 1px 3px rgba(0,0,0,0.08); cursor:pointer; }
+        .card-header { display:flex; justify-content:space-between; }
+        .badge { padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700; color:#fff; }
+        .badge.pcb { background:#4285f4; } .badge.socket { background:#0d904f; } .badge.kit { background:#e8710a; }
+        .actions { display:flex; gap:4px; }
+        .icon-btn { background:none; border:none; font-size:18px; cursor:pointer; opacity:0.5; }
+        .name { font-weight:700; margin:8px 0 4px; }
+        .meta { font-size:12px; color:#5f6368; }
+        .qty { background:#f1f3f4; padding:2px 8px; border-radius:10px; font-weight:700; }
+        .image { width:100%; height:100px; object-fit:cover; border-radius:8px; margin-top:8px; background:#f5f5f5; }
+        .fab { position:fixed; bottom:20px; right:20px; width:56px; height:56px; border-radius:50%; background:var(--primary); color:#fff; font-size:28px; border:none; box-shadow:0 4px 16px rgba(26,115,232,0.3); cursor:pointer; z-index:10; }
+        .modal { position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:100; }
+        .modal-content { background:var(--card); border-radius:16px; width:90%; max-width:500px; padding:20px; max-height:80vh; overflow-y:auto; }
         .form-group { margin-bottom:14px; }
-        .form-label { display:block; font-size:13px; font-weight:600; color:var(--text-secondary); margin-bottom:5px; }
-        .form-input, .form-select, .form-textarea { width:100%; padding:11px 14px; border:1.5px solid var(--border); border-radius:var(--radius-sm); font-size:15px; font-family:inherit; background:#fafafa; color:var(--text); transition:var(--transition); -webkit-appearance:none; }
-        .form-input:focus, .form-select:focus, .form-textarea:focus { outline:none; border-color:var(--primary); background:#fff; box-shadow:0 0 0 3px rgba(26,115,232,0.08); }
-        .form-select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235f6368' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right:36px; cursor:pointer; }
-        .form-textarea { resize:vertical; min-height:70px; }
-        .form-error { font-size:12px; color:var(--danger); margin-top:3px; display:none; }
-        .form-error.visible { display:block; }
-        .modal-actions { display:flex; gap:10px; margin-top:20px; }
-        .modal-actions .btn { flex:1; border-radius:24px; padding:12px; font-size:15px; font-weight:600; }
-        .btn-cancel { background:#f1f3f4; color:var(--text); }
-        .btn-cancel:active { background:#e0e0e0; }
-        .btn-save { background:var(--primary); color:#fff; }
-        .btn-save:active { background:var(--primary-dark); }
-        .image-upload-area { border:2px dashed var(--border); border-radius:var(--radius-sm); padding:16px; text-align:center; cursor:pointer; transition:var(--transition); background:#fafafa; }
-        .image-upload-area:active { background:#f0f0f0; }
-        .image-upload-area img { max-width:100%; max-height:180px; border-radius:8px; display:block; margin:0 auto; }
-        .image-upload-placeholder { color:var(--text-secondary); font-size:14px; display:flex; flex-direction:column; align-items:center; gap:6px; }
-        .image-upload-input { display:none; }
-        .toast-container { position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:300; display:flex; flex-direction:column; gap:8px; pointer-events:none; width:calc(100% - 32px); max-width:400px; }
-        .toast { padding:12px 18px; border-radius:24px; font-size:14px; font-weight:600; text-align:center; animation: toastIn 0.3s ease, toastOut 0.3s ease 2.2s forwards; pointer-events:auto; box-shadow:var(--shadow-lg); }
-        .toast-success { background:#1e7e34; color:#fff; } .toast-error { background:#d93025; color:#fff; } .toast-info { background:#1a73e8; color:#fff; }
-        @keyframes toastIn { from{opacity:0;transform:translateY(-20px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes toastOut { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(-20px)} }
-        .loading-spinner { display:inline-block; width:20px; height:20px; border:2.5px solid #e0e0e0; border-top-color:var(--primary); border-radius:50%; animation:spin 0.7s linear infinite; }
-        @keyframes spin { to{transform:rotate(360deg)} }
-        .loading-overlay { display:flex; align-items:center; justify-content:center; padding:40px; grid-column:1/-1; }
-        .conflict-banner { background:#fef7e0; border:1px solid #f9ab00; border-radius:var(--radius-sm); padding:10px 14px; margin:8px 16px; font-size:13px; color:#5f4b00; display:none; align-items:center; gap:8px; }
-        .conflict-banner.visible { display:flex; }
+        .form-group label { font-size:13px; font-weight:600; color:#5f6368; }
+        .form-group input, .form-group select { width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:15px; }
     </style>
 </head>
 <body>
     <header class="header">
-        <div class="header-left"><div class="logo-icon">📋</div><span class="header-title">库存盘点</span></div>
-        <div class="header-actions">
-            <button class="btn btn-outline btn-icon" onclick="window.app.refreshData()">🔄</button>
-            <button class="btn btn-export" onclick="window.app.exportExcel()">📥 导出</button>
-        </div>
+        <div><strong>📋 库存盘点</strong></div>
+        <button class="btn" onclick="exportExcel()">📥 导出</button>
     </header>
-    <div class="stats-bar" id="statsBar">
-        <div class="stat-chip active" data-filter="all" onclick="window.app.setFilter('all', this)"><span class="stat-dot all"></span> 全部 <span class="stat-count" id="countAll">0</span></div>
-        <div class="stat-chip" data-filter="PCB" onclick="window.app.setFilter('PCB', this)"><span class="stat-dot pcb"></span> PCB板 <span class="stat-count" id="countPCB">0</span></div>
-        <div class="stat-chip" data-filter="Socket" onclick="window.app.setFilter('Socket', this)"><span class="stat-dot socket"></span> Socket <span class="stat-count" id="countSocket">0</span></div>
-        <div class="stat-chip" data-filter="Kit" onclick="window.app.setFilter('Kit', this)"><span class="stat-dot kit"></span> Kit <span class="stat-count" id="countKit">0</span></div>
-    </div>
-    <div class="search-container">
-        <div class="search-input-wrap">
-            <span class="search-icon">🔍</span>
-            <input type="text" class="search-input" id="searchInput" placeholder="搜索名称、型号或位置..." oninput="window.app.onSearch()">
-            <button class="search-clear" id="searchClear" onclick="window.app.clearSearch()">✕</button>
-        </div>
-    </div>
-    <div class="refresh-indicator"><span class="refresh-dot"></span><span id="refreshStatus">自动同步中</span></div>
-    <div class="conflict-banner" id="conflictBanner">⚠️ <span id="conflictMsg"></span><button class="btn btn-outline" style="padding:4px 10px;font-size:12px;margin-left:auto;" onclick="window.app.refreshData()">立即刷新</button></div>
-    <div class="items-container" id="itemsContainer"><div class="loading-overlay"><div class="loading-spinner"></div></div></div>
-    <div class="empty-state" id="emptyState" style="display:none;"><span class="empty-icon">📭</span><p class="empty-text">暂无库存记录</p><p class="empty-sub">点击右下角 + 按钮添加</p></div>
-    <button class="fab" onclick="window.app.openAddModal()">+</button>
+    <div class="stats" id="stats"></div>
+    <div class="search"><input type="text" id="searchInput" placeholder="搜索..." oninput="renderItems()"></div>
+    <div class="items" id="itemsContainer"></div>
+    <button class="fab" onclick="openAddModal()">+</button>
 
     <!-- 编辑弹窗 -->
-    <div class="modal-overlay" id="modalOverlay" style="display:none;" onclick="window.app.onOverlayClick(event)">
-        <div class="modal" onclick="event.stopPropagation()">
-            <div class="modal-handle"></div>
-            <div class="modal-title" id="modalTitle">添加库存</div>
-            <form id="itemForm">
-                <input type="hidden" id="itemId"><input type="hidden" id="itemUpdatedAt">
-                <div class="form-group"><label class="form-label" for="itemType">类型 *</label><select class="form-select" id="itemType" required><option value="">请选择类型</option><option value="PCB">PCB板</option><option value="Socket">Socket</option><option value="Kit">Kit</option></select></div>
-                <div class="form-group"><label class="form-label" for="itemName">名称 *</label><input type="text" class="form-input" id="itemName" placeholder="例如：主板PCB v2.1" required maxlength="100"><span class="form-error" id="nameError">请输入名称（1-100字符）</span></div>
-                <div class="form-group"><label class="form-label" for="itemModel">型号 / 规格</label><input type="text" class="form-input" id="itemModel" placeholder="例如：ATX-2026-R3" maxlength="100"></div>
-                <div class="form-group"><label class="form-label" for="itemLocation">存放位置 *</label><input type="text" class="form-input" id="itemLocation" placeholder="例如：A区-3号柜-第2层" required maxlength="200"><span class="form-error" id="locationError">请输入存放位置（1-200字符）</span></div>
-                <div class="form-group"><label class="form-label" for="itemQty">数量</label><input type="number" class="form-input" id="itemQty" value="1" min="1" max="99999" required></div>
-                <div class="form-group"><label class="form-label">物品图片</label><div class="image-upload-area" id="imageUploadArea" onclick="document.getElementById('imageFileInput').click()"><img id="imagePreview" src="" alt="预览" style="display:none;"><div class="image-upload-placeholder" id="imagePlaceholder"><span>📷</span><span>点击上传图片（可选）</span></div></div><input type="file" id="imageFileInput" class="image-upload-input" accept="image/*" capture="environment" onchange="window.app.handleImageSelect(event)"></div>
-                <div class="form-group"><label class="form-label" for="itemRemarks">备注</label><textarea class="form-textarea" id="itemRemarks" placeholder="可选备注信息..." maxlength="500"></textarea></div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-cancel" onclick="window.app.closeModal()">取消</button>
-                    <button type="button" class="btn btn-save" id="saveBtn" onclick="window.app.submitForm(event)">保存</button>
+    <div class="modal" id="editModal" style="display:none" onclick="if(event.target===this) closeModal()">
+        <div class="modal-content">
+            <h3 id="modalTitle">添加物品</h3>
+            <form onsubmit="handleSubmit(event)">
+                <input type="hidden" id="editId">
+                <div class="form-group"><label>类型 *</label><select id="editType" required><option value="">请选择</option><option value="PCB">PCB板</option><option value="Socket">Socket</option><option value="Kit">Kit</option></select></div>
+                <div class="form-group"><label>名称 *</label><input type="text" id="editName" required></div>
+                <div class="form-group"><label>型号</label><input type="text" id="editModel"></div>
+                <div class="form-group"><label>存放位置 *</label><input type="text" id="editLocation" required></div>
+                <div class="form-group"><label>数量</label><input type="number" id="editQty" value="1" min="1" required></div>
+                <div class="form-group"><label>备注</label><input type="text" id="editRemarks"></div>
+                <div class="form-group"><label>图片</label><input type="file" id="imageInput" accept="image/*" onchange="handleImageSelect(event)"></div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button type="button" class="btn" onclick="closeModal()">取消</button>
+                    <button type="submit" class="btn primary" id="saveBtn">保存</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- 移动弹窗 -->
-    <div class="modal-overlay" id="moveModalOverlay" style="display:none;" onclick="window.app.closeMoveModal(event)">
-        <div class="modal" onclick="event.stopPropagation()">
-            <div class="modal-handle"></div>
-            <div class="modal-title">📦 调拨库存</div>
-            <form id="moveForm">
-                <input type="hidden" id="moveItemId">
-                <div class="form-group"><label class="form-label">当前物品</label><div id="moveItemInfo" style="background:#f5f5f5; padding:10px; border-radius:8px; font-size:14px;"></div></div>
-                <div class="form-group"><label class="form-label" for="moveQuantity">移出数量 *</label><input type="number" class="form-input" id="moveQuantity" min="1" required><span class="form-error" id="moveQtyError">数量不能超过当前库存</span></div>
-                <div class="form-group"><label class="form-label" for="moveTargetLocation">目标存放位置 *</label><input type="text" class="form-input" id="moveTargetLocation" required placeholder="例如：合肥仓库" maxlength="200"><span class="form-error" id="moveLocationError">请输入目标位置</span></div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-cancel" onclick="window.app.closeMoveModal()">取消</button>
-                    <button type="button" class="btn btn-save" id="moveSaveBtn" onclick="window.app.submitMove(event)">确认调拨</button>
+    <!-- 调拨弹窗 -->
+    <div class="modal" id="moveModal" style="display:none" onclick="if(event.target===this) closeMoveModal()">
+        <div class="modal-content">
+            <h3>📦 调拨库存</h3>
+            <form onsubmit="handleMove(event)">
+                <input type="hidden" id="moveId">
+                <div class="form-group"><label>物品信息</label><div id="moveInfo" style="background:#f5f5f5;padding:10px;border-radius:8px;"></div></div>
+                <div class="form-group"><label>移出数量 *</label><input type="number" id="moveQty" min="1" required></div>
+                <div class="form-group"><label>目标位置 *</label><input type="text" id="moveTarget" required></div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button type="button" class="btn" onclick="closeMoveModal()">取消</button>
+                    <button type="submit" class="btn primary">确认调拨</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="toast-container" id="toastContainer"></div>
     <script>
-        (function() {
-            class InventoryApp {
-                constructor() {
-                    this.items = [];
-                    this.currentFilter = 'all';
-                    this.searchQuery = '';
-                    this.autoRefreshInterval = null;
-                    this.autoRefreshSeconds = 10;
-                    this.isModalOpen = false;
-                    this.editingItem = null;
-                    this.lastRefreshTime = null;
-                    this.pendingImageFile = null;
-                    this.init();
-                }
-                init() {
-                    this.fetchItems();
-                    this.startAutoRefresh();
-                    document.addEventListener('visibilitychange', () => {
-                        if (document.visibilityState === 'visible') { this.fetchItems(); this.startAutoRefresh(); } else { this.stopAutoRefresh(); }
-                    });
-                }
-                async fetchItems() {
-                    try {
-                        const res = await fetch('/api/items');
-                        if (!res.ok) throw new Error('获取数据失败');
-                        const data = await res.json();
-                        this.items = data.items || [];
-                        this.lastRefreshTime = new Date();
-                        this.updateStats();
-                        this.renderItems();
-                        this.updateRefreshStatus();
-                        document.getElementById('conflictBanner').classList.remove('visible');
-                    } catch (err) {
-                        console.error(err);
-                        this.showToast('无法连接服务器', 'error');
-                        this.updateRefreshStatus(true);
-                    }
-                }
-                async addItem(itemData) {
-                    const res = await fetch('/api/items', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(itemData) });
-                    if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.error || '添加失败'); }
-                    return await res.json();
-                }
-                async updateItem(id, itemData, expectedUpdatedAt) {
-                    const res = await fetch(`/api/items/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...itemData, expected_updated_at: expectedUpdatedAt}) });
-                    if (res.status === 409) throw new Error('CONFLICT');
-                    if (res.status === 404) throw new Error('NOT_FOUND');
-                    if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.error || '更新失败'); }
-                    return await res.json();
-                }
-                async deleteItem(id) {
-                    const res = await fetch(`/api/items/${id}`, { method:'DELETE' });
-                    if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.error || '删除失败'); }
-                    return await res.json();
-                }
-                async uploadImage(file) {
-                    const formData = new FormData(); formData.append('image', file);
-                    const res = await fetch('/api/upload', { method:'POST', body:formData });
-                    if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.error || '上传失败'); }
-                    const data = await res.json(); return data.imageUrl;
-                }
-                handleImageSelect(event) {
-                    const file = event.target.files[0]; if (!file) return;
-                    if (file.size > 10*1024*1024) { this.showToast('图片不能超过10MB','error'); return; }
-                    this.pendingImageFile = file;
-                    const reader = new FileReader();
-                    reader.onload = e => {
-                        document.getElementById('imagePreview').src = e.target.result;
-                        document.getElementById('imagePreview').style.display = 'block';
-                        document.getElementById('imagePlaceholder').style.display = 'none';
-                    };
-                    reader.readAsDataURL(file);
-                }
-                clearImageSelection() {
-                    this.pendingImageFile = null;
-                    document.getElementById('imageFileInput').value = '';
-                    document.getElementById('imagePreview').style.display = 'none';
-                    document.getElementById('imagePlaceholder').style.display = 'flex';
-                }
-                setImagePreview(url) {
-                    if (url) {
-                        document.getElementById('imagePreview').src = url;
-                        document.getElementById('imagePreview').style.display = 'block';
-                        document.getElementById('imagePlaceholder').style.display = 'none';
-                    } else this.clearImageSelection();
-                }
-                updateStats() {
-                    document.getElementById('countAll').textContent = this.items.length;
-                    document.getElementById('countPCB').textContent = this.items.filter(i=>i.type==='PCB').length;
-                    document.getElementById('countSocket').textContent = this.items.filter(i=>i.type==='Socket').length;
-                    document.getElementById('countKit').textContent = this.items.filter(i=>i.type==='Kit').length;
-                }
-                getFilteredItems() {
-                    let filtered = this.items;
-                    if (this.currentFilter !== 'all') filtered = filtered.filter(i => i.type === this.currentFilter);
-                    if (this.searchQuery.trim()) {
-                        const q = this.searchQuery.trim().toLowerCase();
-                        filtered = filtered.filter(i => (i.name&&i.name.toLowerCase().includes(q))||(i.model&&i.model.toLowerCase().includes(q))||(i.location&&i.location.toLowerCase().includes(q))||(i.remarks&&i.remarks.toLowerCase().includes(q)));
-                    }
-                    filtered.sort((a,b)=> new Date(b.updated_at) - new Date(a.updated_at));
-                    return filtered;
-                }
-                renderItems() {
-                    const container = document.getElementById('itemsContainer');
-                    const emptyState = document.getElementById('emptyState');
-                    const filtered = this.getFilteredItems();
-                    if (this.items.length === 0 && !this.searchQuery && this.currentFilter==='all') {
-                        container.innerHTML = ''; emptyState.style.display='block';
-                        return;
-                    }
-                    if (filtered.length === 0) {
-                        container.innerHTML = ''; emptyState.style.display='block'; emptyState.querySelector('.empty-text').textContent='没有匹配的记录';
-                        return;
-                    }
-                    emptyState.style.display = 'none';
-                    container.innerHTML = filtered.map((item, index) => {
-                        const typeBadgeClass = item.type==='PCB'?'badge-pcb':item.type==='Socket'?'badge-socket':'badge-kit';
-                        const timeStr = this.formatRelativeTime(item.updated_at);
-                        const imageHtml = item.image ? `<img class="item-image" src="${this.escapeHtml(item.image)}" alt="">` : '';
-                        const modelHtml = item.model ? `<div class="item-model">📐 ${this.escapeHtml(item.model)}</div>` : '';
-                        const remarksHtml = item.remarks ? `<div style="font-size:11px;color:#999;margin-top:2px;">💬 ${this.escapeHtml(item.remarks)}</div>` : '';
-                        return `
-                        <div class="item-card" onclick="window.app.openEditModal('${item.id}')">
-                            <div class="item-card-header">
-                                <span class="item-type-badge ${typeBadgeClass}">${item.type}</span>
-                                <div class="item-actions">
-                                    <button class="item-action-btn move-btn" onclick="event.stopPropagation();window.app.openMoveModal('${item.id}')" title="调拨">🚚</button>
-                                    <button class="item-action-btn delete-btn" onclick="event.stopPropagation();window.app.confirmDelete('${item.id}','${this.escapeHtml(item.name||'')}')" title="删除">🗑️</button>
-                                </div>
-                            </div>
-                            <div class="item-name">${this.escapeHtml(item.name || '未命名')}</div>
-                            ${modelHtml}
-                            <div class="item-meta"><span class="item-location">📍 ${this.escapeHtml(item.location||'-')}</span><span class="item-qty">📦 ${item.quantity||1}</span></div>
-                            ${imageHtml}
-                            ${remarksHtml}
-                            <div class="item-time">🕐 ${timeStr}</div>
-                        </div>`;
-                    }).join('');
-                }
-                escapeHtml(str) { const div = document.createElement('div'); div.textContent = str || ''; return div.innerHTML; }
-                formatRelativeTime(dateStr) {
-                    if (!dateStr) return '未知';
-                    const diff = Math.floor((new Date() - new Date(dateStr))/1000);
-                    if (diff < 60) return '刚刚';
-                    if (diff < 3600) return Math.floor(diff/60)+'分钟前';
-                    if (diff < 86400) return Math.floor(diff/3600)+'小时前';
-                    if (diff < 604800) return Math.floor(diff/86400)+'天前';
-                    return new Date(dateStr).toLocaleDateString('zh-CN');
-                }
-                updateRefreshStatus(isError = false) {
-                    const el = document.getElementById('refreshStatus');
-                    const dot = document.querySelector('.refresh-dot');
-                    if (isError) { el.textContent = '连接异常'; dot.style.background = '#d93025'; }
-                    else { el.textContent = '自动同步中'; dot.style.background = '#34a853'; }
-                }
-                setFilter(filter, chipEl) {
-                    this.currentFilter = filter;
-                    document.querySelectorAll('.stat-chip').forEach(c => c.classList.remove('active'));
-                    if (chipEl) chipEl.classList.add('active');
-                    this.renderItems();
-                }
-                onSearch() {
-                    const input = document.getElementById('searchInput');
-                    this.searchQuery = input.value;
-                    document.getElementById('searchClear').classList.toggle('visible', !!input.value.trim());
-                    this.renderItems();
-                }
-                clearSearch() {
-                    document.getElementById('searchInput').value = '';
-                    this.searchQuery = '';
-                    document.getElementById('searchClear').classList.remove('visible');
-                    this.renderItems();
-                }
-                openAddModal() {
-                    this.editingItem = null;
-                    document.getElementById('modalTitle').textContent = '添加库存';
-                    document.getElementById('itemId').value = '';
-                    document.getElementById('itemUpdatedAt').value = '';
-                    document.getElementById('itemType').value = '';
-                    document.getElementById('itemName').value = '';
-                    document.getElementById('itemModel').value = '';
-                    document.getElementById('itemLocation').value = '';
-                    document.getElementById('itemQty').value = '1';
-                    document.getElementById('itemRemarks').value = '';
-                    document.getElementById('saveBtn').textContent = '保存';
-                    saveBtn.disabled = false; 
-                    this.clearImageSelection();
-                    this.clearFormErrors();
-                    this.showModal();
-                }
-                openEditModal(id) {
-                    const item = this.items.find(i => i.id === id);
-                    if (!item) { this.showToast('记录已被删除','error'); this.fetchItems(); return; }
-                    this.editingItem = item;
-                    document.getElementById('modalTitle').textContent = '编辑库存';
-                    document.getElementById('itemId').value = item.id;
-                    document.getElementById('itemUpdatedAt').value = item.updated_at || '';
-                    document.getElementById('itemType').value = item.type || '';
-                    document.getElementById('itemName').value = item.name || '';
-                    document.getElementById('itemModel').value = item.model || '';
-                    document.getElementById('itemLocation').value = item.location || '';
-                    document.getElementById('itemQty').value = item.quantity || 1;
-                    document.getElementById('itemRemarks').value = item.remarks || '';
-                    document.getElementById('saveBtn').textContent = '更新';
-                    saveBtn.disabled = false; 
-                    this.clearImageSelection();
-                    if (item.image) this.setImagePreview(item.image);
-                    this.clearFormErrors();
-                    this.showModal();
-                }
-                showModal() {
-                    this.isModalOpen = true;
-                    document.getElementById('modalOverlay').style.display = 'flex';
-                    document.body.style.overflow = 'hidden';
-                    this.stopAutoRefresh();
-                }
-                closeModal() {
-                    this.isModalOpen = false;
-                    document.getElementById('modalOverlay').style.display = 'none';
-                    document.body.style.overflow = '';
-                    this.editingItem = null;
-                    this.clearFormErrors();
-                    this.clearImageSelection();
-                    this.startAutoRefresh();
-                    this.fetchItems();
-                }
-                onOverlayClick(event) {
-                    if (event.target === document.getElementById('modalOverlay')) this.closeModal();
-                }
-                clearFormErrors() {
-                    document.querySelectorAll('.form-error').forEach(el => el.classList.remove('visible'));
-                }
-                async submitForm(event) {
-                    if (event) event.preventDefault();
-                    this.clearFormErrors();
-                    const id = document.getElementById('itemId').value;
-                    const updatedAt = document.getElementById('itemUpdatedAt').value;
-                    const typeSelect = document.getElementById('itemType');
-                    const type = typeSelect.options[typeSelect.selectedIndex]?.value || '';
-                    const name = document.getElementById('itemName').value.trim();
-                    const model = document.getElementById('itemModel').value.trim();
-                    const location = document.getElementById('itemLocation').value.trim();
-                    const quantity = parseInt(document.getElementById('itemQty').value) || 1;
-                    const remarks = document.getElementById('itemRemarks').value.trim();
-                    let hasError = false;
-                    if (!type) { hasError = true; this.showToast('请选择类型','error'); }
-                    if (!name || name.length > 100) { hasError = true; document.getElementById('nameError').classList.add('visible'); }
-                    if (!location || location.length > 200) { hasError = true; document.getElementById('locationError').classList.add('visible'); }
-                    if (isNaN(quantity) || quantity < 1 || quantity > 99999) { hasError = true; this.showToast('数量需在1-99999之间','error'); }
-                    if (hasError) return;
-                    const saveBtn = document.getElementById('saveBtn');
-                    saveBtn.disabled = true; saveBtn.textContent = '保存中...';
-                    let imageUrl = this.editingItem ? this.editingItem.image || '' : '';
-                    try {
-                        if (this.pendingImageFile) imageUrl = await this.uploadImage(this.pendingImageFile);
-                    } catch (err) { this.showToast('图片上传失败','error'); saveBtn.disabled = false; saveBtn.textContent = id?'更新':'保存'; return; }
-                    const itemData = { type, name, model, location, quantity, remarks, image: imageUrl };
-                    try {
-                        if (id) { await this.updateItem(id, itemData, updatedAt); this.showToast('✅ 更新成功','success'); }
-                        else { await this.addItem(itemData); this.showToast('✅ 添加成功','success'); }
-                        this.closeModal();
-                        await this.fetchItems();
-                    } catch (err) {
-                        if (err.message === 'CONFLICT') { this.showToast('⚠️ 数据已被修改','error'); document.getElementById('conflictBanner').classList.add('visible'); }
-                        else if (err.message === 'NOT_FOUND') { this.showToast('⚠️ 项目已删除','error'); this.closeModal(); await this.fetchItems(); }
-                        else this.showToast('❌ '+err.message,'error');
-                        saveBtn.disabled = false; saveBtn.textContent = id?'更新':'保存';
-                    }
-                }
-                confirmDelete(id, name) {
-                    if (confirm(`确定要删除「${name||'该项目'}」吗？`)) this.performDelete(id);
-                }
-                async performDelete(id) {
-                    try { await this.deleteItem(id); this.showToast('🗑️ 已删除','info'); await this.fetchItems(); }
-                    catch (err) { this.showToast('❌ 删除失败: '+err.message,'error'); }
-                }
-                openMoveModal(id) {
-                    const item = this.items.find(i => i.id === id);
-                    if (!item) { this.showToast('记录不存在','error'); this.fetchItems(); return; }
-                    document.getElementById('moveItemId').value = item.id;
-                    document.getElementById('moveItemInfo').innerHTML = `<strong>${this.escapeHtml(item.name)}</strong> · ${item.type}<br>📍 当前位置：${this.escapeHtml(item.location)} · 📦 库存：${item.quantity}`;
-                    document.getElementById('moveQuantity').max = item.quantity;
-                    document.getElementById('moveQuantity').value = 1;
-                    document.getElementById('moveTargetLocation').value = '';
-                    document.getElementById('moveQtyError').classList.remove('visible');
-                    document.getElementById('moveLocationError').classList.remove('visible');
-                    const moveSaveBtn = document.getElementById('moveSaveBtn');
-                    moveSaveBtn.disabled = false;
-                    moveSaveBtn.textContent = '确认调拨';
-                    document.getElementById('moveModalOverlay').style.display = 'flex';
-                    this.stopAutoRefresh();
-                }
-                closeMoveModal(event) {
-                    if (event && event.target !== document.getElementById('moveModalOverlay')) return;
-                    document.getElementById('moveModalOverlay').style.display = 'none';
-                    this.startAutoRefresh();
-                }
-                async submitMove(event) {
-                    if (event) event.preventDefault();
-                    const id = document.getElementById('moveItemId').value;
-                    const quantity = parseInt(document.getElementById('moveQuantity').value);
-                    const targetLocation = document.getElementById('moveTargetLocation').value.trim();
-                    const item = this.items.find(i => i.id === id);
-                    if (!item) { this.showToast('物品不存在','error'); this.closeMoveModal(); return; }
-                    if (!quantity || quantity < 1 || quantity > item.quantity) { document.getElementById('moveQtyError').classList.add('visible'); return; }
-                    if (!targetLocation) { document.getElementById('moveLocationError').classList.add('visible'); return; }
-                    const saveBtn = document.getElementById('moveSaveBtn');
-                    saveBtn.disabled = true; saveBtn.textContent = '调拨中...';
-                    try {
-                        const res = await fetch(`/api/items/${id}/move`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ target_location: targetLocation, quantity }) });
-                        if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.error || '调拨失败'); }
-                        this.showToast('✅ 调拨成功','success');
-                        this.closeMoveModal();
-                        await this.fetchItems();
-                    } catch (err) {
-                        this.showToast('❌ '+err.message,'error');
-                        saveBtn.disabled = false; saveBtn.textContent = '确认调拨';
-                    }
-                }
-                exportExcel() {
-                    const filtered = this.getFilteredItems();
-                    if (filtered.length === 0) { this.showToast('没有数据可导出','error'); return; }
-                    let url = '/api/export?';
-                    if (this.currentFilter !== 'all') url += `type=${this.currentFilter}&`;
-                    if (this.searchQuery.trim()) url += `search=${this.searchQuery.trim()}&`;
-                    url += `t=${Date.now()}`;
-                    const a = document.createElement('a'); a.href = url; a.download = `库存盘点.xlsx`; document.body.appendChild(a); a.click(); a.remove();
-                    this.showToast('📥 正在下载Excel...','info');
-                }
-                showToast(message, type='info') {
-                    const container = document.getElementById('toastContainer');
-                    const toast = document.createElement('div'); toast.className = `toast toast-${type}`; toast.textContent = message;
-                    container.appendChild(toast);
-                    setTimeout(() => toast.remove(), 2600);
-                }
-                startAutoRefresh() {
-                    this.stopAutoRefresh();
-                    this.autoRefreshInterval = setInterval(() => {
-                        if (!this.isModalOpen && document.visibilityState === 'visible') this.fetchItems();
-                        this.updateRefreshStatus();
-                    }, this.autoRefreshSeconds * 1000);
-                }
-                stopAutoRefresh() { if (this.autoRefreshInterval) { clearInterval(this.autoRefreshInterval); this.autoRefreshInterval = null; } }
-                refreshData() { this.fetchItems(); this.showToast('🔄 已刷新','info'); }
+        // ========== 你的配置 ==========
+        const SUPABASE_URL = 'https://xxtpvfawljtutcwrmqlf.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // 替换成你的 anon public key
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let items = [];
+        let currentFilter = 'all';
+        let pendingImageFile = null;
+
+        async function init() {
+            await loadItems();
+            supabase.channel('items-changes').on('postgres_changes', { event:'*', schema:'public', table:'items' }, () => loadItems()).subscribe();
+        }
+
+        async function loadItems() {
+            const { data, error } = await supabase.from('items').select('*').order('updated_at', { ascending: false });
+            if (error) { alert('连接数据库失败，请检查 Key 或网络'); return; }
+            items = data || [];
+            updateStats();
+            renderItems();
+        }
+
+        function updateStats() {
+            const all = items.length;
+            const pcb = items.filter(i=>i.type==='PCB').length;
+            const socket = items.filter(i=>i.type==='Socket').length;
+            const kit = items.filter(i=>i.type==='Kit').length;
+            document.getElementById('stats').innerHTML = `
+                <div class="stat active" onclick="setFilter('all', this)">全部 ${all}</div>
+                <div class="stat" onclick="setFilter('PCB', this)">PCB ${pcb}</div>
+                <div class="stat" onclick="setFilter('Socket', this)">Socket ${socket}</div>
+                <div class="stat" onclick="setFilter('Kit', this)">Kit ${kit}</div>
+            `;
+        }
+
+        function setFilter(type, el) {
+            currentFilter = type;
+            document.querySelectorAll('.stat').forEach(s=>s.classList.remove('active'));
+            el.classList.add('active');
+            renderItems();
+        }
+
+        function renderItems() {
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
+            let filtered = items;
+            if (currentFilter !== 'all') filtered = filtered.filter(i=>i.type===currentFilter);
+            if (q) filtered = filtered.filter(i=> (i.name||'').toLowerCase().includes(q) || (i.model||'').toLowerCase().includes(q) || (i.location||'').toLowerCase().includes(q));
+            const container = document.getElementById('itemsContainer');
+            if (filtered.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:48px;color:#999;">📭 暂无记录</div>';
+                return;
             }
-            window.app = new InventoryApp();
-        })();
+            container.innerHTML = filtered.map(item => `
+                <div class="card" onclick="openEditModal('${item.id}')">
+                    <div class="card-header">
+                        <span class="badge ${item.type==='PCB'?'pcb':item.type==='Socket'?'socket':'kit'}">${item.type}</span>
+                        <div class="actions">
+                            <button class="icon-btn" style="color:#1a73e8" onclick="event.stopPropagation();openMoveModal('${item.id}')">🚚</button>
+                            <button class="icon-btn" style="color:#d93025" onclick="event.stopPropagation();deleteItem('${item.id}','${item.name}')">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="name">${item.name}</div>
+                    ${item.model ? `<div style="font-size:13px;color:#666;">📐 ${item.model}</div>` : ''}
+                    <div class="meta"><span>📍 ${item.location}</span><span class="qty">📦 ${item.quantity}</span></div>
+                    ${item.image ? `<img class="image" src="${item.image}">` : ''}
+                    <div style="font-size:11px;color:#999;">🕐 ${new Date(item.updated_at).toLocaleString()}</div>
+                </div>
+            `).join('');
+        }
+
+        function openAddModal() {
+            document.getElementById('editId').value = '';
+            document.getElementById('modalTitle').textContent = '添加物品';
+            document.getElementById('editType').value = '';
+            document.getElementById('editName').value = '';
+            document.getElementById('editModel').value = '';
+            document.getElementById('editLocation').value = '';
+            document.getElementById('editQty').value = 1;
+            document.getElementById('editRemarks').value = '';
+            document.getElementById('saveBtn').textContent = '保存';
+            document.getElementById('saveBtn').disabled = false;
+            pendingImageFile = null;
+            document.getElementById('imageInput').value = '';
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        function openEditModal(id) {
+            const item = items.find(i=>i.id===id);
+            if (!item) return;
+            document.getElementById('editId').value = item.id;
+            document.getElementById('modalTitle').textContent = '编辑物品';
+            document.getElementById('editType').value = item.type;
+            document.getElementById('editName').value = item.name;
+            document.getElementById('editModel').value = item.model||'';
+            document.getElementById('editLocation').value = item.location;
+            document.getElementById('editQty').value = item.quantity;
+            document.getElementById('editRemarks').value = item.remarks||'';
+            document.getElementById('saveBtn').textContent = '更新';
+            document.getElementById('saveBtn').disabled = false;
+            pendingImageFile = null;
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        function closeModal() { document.getElementById('editModal').style.display = 'none'; }
+
+        function handleImageSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            pendingImageFile = file;
+        }
+
+        async function handleSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('editId').value;
+            const type = document.getElementById('editType').value;
+            const name = document.getElementById('editName').value.trim();
+            const model = document.getElementById('editModel').value.trim();
+            const location = document.getElementById('editLocation').value.trim();
+            const quantity = parseInt(document.getElementById('editQty').value)||1;
+            const remarks = document.getElementById('editRemarks').value.trim();
+            if (!type || !name || !location) { alert('请填写必填项'); return; }
+            const btn = document.getElementById('saveBtn');
+            btn.disabled = true; btn.textContent = '保存中...';
+            let imageUrl = id ? items.find(i=>i.id===id)?.image || '' : '';
+            try {
+                if (pendingImageFile) {
+                    const fileName = `${Date.now()}.${pendingImageFile.name.split('.').pop()}`;
+                    const { error } = await supabase.storage.from('images').upload(fileName, pendingImageFile);
+                    if (error) throw error;
+                    const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(fileName);
+                    imageUrl = publicUrl;
+                }
+                const itemData = { type, name, model, location, quantity, remarks, image: imageUrl, updated_at: new Date() };
+                if (id) {
+                    const { error } = await supabase.from('items').update(itemData).eq('id', id);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase.from('items').insert([itemData]);
+                    if (error) throw error;
+                }
+                closeModal();
+                loadItems();
+            } catch (err) {
+                alert('保存失败: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = id ? '更新' : '保存';
+            }
+        }
+
+        async function deleteItem(id, name) {
+            if (!confirm(`确定删除「${name}」？`)) return;
+            const item = items.find(i=>i.id===id);
+            if (item?.image) {
+                const path = item.image.split('/').pop();
+                await supabase.storage.from('images').remove([path]);
+            }
+            await supabase.from('items').delete().eq('id', id);
+            loadItems();
+        }
+
+        function openMoveModal(id) {
+            const item = items.find(i=>i.id===id);
+            if (!item) return;
+            document.getElementById('moveId').value = id;
+            document.getElementById('moveInfo').innerHTML = `<strong>${item.name}</strong> · ${item.type}<br>📍 ${item.location} · 📦 库存：${item.quantity}`;
+            document.getElementById('moveQty').max = item.quantity;
+            document.getElementById('moveQty').value = 1;
+            document.getElementById('moveTarget').value = '';
+            document.getElementById('moveModal').style.display = 'flex';
+        }
+        function closeMoveModal() { document.getElementById('moveModal').style.display = 'none'; }
+
+        async function handleMove(e) {
+            e.preventDefault();
+            const id = document.getElementById('moveId').value;
+            const qty = parseInt(document.getElementById('moveQty').value);
+            const target = document.getElementById('moveTarget').value.trim();
+            const source = items.find(i=>i.id===id);
+            if (!source) return;
+            if (qty > source.quantity || qty < 1) { alert('数量错误'); return; }
+            const btn = e.target.querySelector('button[type=submit]');
+            btn.disabled = true; btn.textContent = '调拨中...';
+            try {
+                if (qty === source.quantity) {
+                    await supabase.from('items').delete().eq('id', id);
+                } else {
+                    await supabase.from('items').update({ quantity: source.quantity - qty, updated_at: new Date() }).eq('id', id);
+                }
+                const { data: existing } = await supabase.from('items').select('*').eq('location', target).eq('type', source.type).eq('name', source.name).eq('model', source.model);
+                if (existing && existing.length > 0) {
+                    await supabase.from('items').update({ quantity: existing[0].quantity + qty, updated_at: new Date() }).eq('id', existing[0].id);
+                } else {
+                    await supabase.from('items').insert([{ type: source.type, name: source.name, model: source.model, location: target, quantity: qty, remarks: source.remarks, image: source.image }]);
+                }
+                closeMoveModal();
+                loadItems();
+            } catch (err) {
+                alert('调拨失败: ' + err.message);
+                btn.disabled = false; btn.textContent = '确认调拨';
+            }
+        }
+
+        function exportExcel() {
+            const data = items.map(i=>({ 类型:i.type, 名称:i.name, 型号:i.model, 位置:i.location, 数量:i.quantity, 备注:i.remarks }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '库存');
+            XLSX.writeFile(wb, '库存盘点.xlsx');
+        }
+
+        init();
     </script>
-</body>
-<script>
-    // ========== Supabase 配置 ==========
-    const SUPABASE_URL = 'https://xxtpvfawljtutcwrmqlf.supabase.co';  // 替换成你的 URL
-    const SUPABASE_KEY = 'sb_secret_uImqp7UR6Qfi1mY-rZEDFA_-_UWF8LN';                   // 替换成你的密钥
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    // ========== 全局状态 ==========
-    let items = [];
-    let currentFilter = 'all';
-    let searchQuery = '';
-    let isModalOpen = false;
-    let editingItem = null;
-    let pendingImageFile = null;
-    let realtimeChannel = null;
-
-    // ========== 初始化 ==========
-    async function init() {
-      await fetchItems();
-      subscribeToChanges(); // 订阅实时变更
-    }
-
-    // 获取所有物品
-    async function fetchItems() {
-      const { data, error } = await supabase.from('items').select('*').order('updated_at', { ascending: false });
-      if (error) { showToast('获取数据失败', 'error'); return; }
-      items = data || [];
-      updateStats();
-      renderItems();
-    }
-
-    // 实时订阅：当数据库变化时自动更新
-    function subscribeToChanges() {
-      realtimeChannel = supabase
-        .channel('items-channel')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, (payload) => {
-          console.log('实时更新:', payload);
-          fetchItems(); // 简单全量刷新，也可以针对事件类型局部更新
-        })
-        .subscribe();
-    }
-
-    // 添加物品
-    async function addItem(itemData) {
-      const { data, error } = await supabase.from('items').insert([itemData]).select();
-      if (error) throw new Error(error.message);
-      return data[0];
-    }
-
-    // 更新物品
-    async function updateItem(id, itemData) {
-      const { data, error } = await supabase.from('items').update(itemData).eq('id', id).select();
-      if (error) throw new Error(error.message);
-      return data[0];
-    }
-
-    // 删除物品
-    async function deleteItem(id) {
-      // 先找到物品，删除关联图片（可选）
-      const item = items.find(i => i.id === id);
-      if (item && item.image) {
-        const path = item.image.split('/').pop();
-        await supabase.storage.from('images').remove([path]);
-      }
-      const { error } = await supabase.from('items').delete().eq('id', id);
-      if (error) throw new Error(error.message);
-    }
-
-    // 上传图片并返回公开URL
-    async function uploadImage(file) {
-      const fileName = `${Date.now()}-${file.name}`;
-      const { data, error } = await supabase.storage.from('images').upload(fileName, file);
-      if (error) throw new Error(error.message);
-      const { data: publicUrl } = supabase.storage.from('images').getPublicUrl(data.path);
-      return publicUrl.publicUrl;
-    }
-
-    // 移动库存（调拨）
-    async function moveItem(sourceId, targetLocation, moveQty) {
-      const source = items.find(i => i.id === sourceId);
-      if (!source) throw new Error('物品不存在');
-      if (moveQty > source.quantity) throw new Error('移出数量超出库存');
-
-      // 查找目标位置是否存在相同物品
-      const { data: targets, error: findErr } = await supabase.from('items').select('*').eq('location', targetLocation).eq('type', source.type).eq('name', source.name).eq('model', source.model);
-      if (findErr) throw new Error(findErr.message);
-
-      const target = targets.length > 0 ? targets[0] : null;
-
-      // 更新源物品数量或删除
-      if (moveQty === source.quantity) {
-        await supabase.from('items').delete().eq('id', sourceId);
-      } else {
-        await supabase.from('items').update({ quantity: source.quantity - moveQty, updated_at: new Date() }).eq('id', sourceId);
-      }
-
-      // 更新或创建目标物品
-      if (target) {
-        await supabase.from('items').update({ quantity: target.quantity + moveQty, updated_at: new Date() }).eq('id', target.id);
-      } else {
-        await supabase.from('items').insert([{
-          type: source.type,
-          name: source.name,
-          model: source.model,
-          location: targetLocation,
-          quantity: moveQty,
-          remarks: source.remarks,
-          image: source.image,
-        }]);
-      }
-    }
-
-    // 导出Excel (前端生成)
-    function exportExcel() {
-      const filtered = getFilteredItems();
-      const data = filtered.map(item => ({
-        类型: item.type,
-        名称: item.name,
-        型号: item.model,
-        存放位置: item.location,
-        数量: item.quantity,
-        备注: item.remarks,
-        最后更新: new Date(item.updated_at).toLocaleString('zh-CN')
-      }));
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '库存盘点');
-      XLSX.writeFile(wb, `库存盘点_${new Date().toISOString().slice(0,10)}.xlsx`);
-    }
-
-    // ========== UI 交互函数（与之前完全相同） ==========
-    // ... 省略，请从旧版 index.html 中复制所有 UI 相关函数 ...
-  </script>
 </body>
 </html>
