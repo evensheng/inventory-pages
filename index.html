@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>库存盘点</title>
+  <title>库存盘点系统</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
   <style>
     :root{--primary:#1a73e8;--bg:#f0f2f5;--card:#fff;--text:#1f1f1f;--border:#e0e0e0}
     *{margin:0;padding:0;box-sizing:border-box}
     body{font-family:system-ui,'PingFang SC',sans-serif;background:var(--bg);padding-bottom:80px}
-    .header{background:var(--card);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,0.1);position:sticky;top:0}
+    .header{background:var(--card);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,0.1);position:sticky;top:0;z-index:10}
     .btn{padding:8px 16px;border-radius:20px;border:1.5px solid var(--border);font-weight:600;background:var(--card);cursor:pointer}
     .btn.primary{background:var(--primary);color:#fff;border:none}
     .stats{display:flex;gap:8px;padding:12px;overflow-x:auto}
-    .stat{padding:6px 14px;border-radius:20px;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,0.08);cursor:pointer;white-space:nowrap}
+    .stat{padding:6px 14px;border-radius:20px;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,0.08);cursor:pointer;white-space:nowrap;font-size:13px;font-weight:600}
     .stat.active{background:#e8f0fe;color:var(--primary)}
     .search{padding:0 16px 12px}
     .search input{width:100%;padding:10px 16px;border-radius:24px;border:1.5px solid var(--border);font-size:15px}
@@ -22,46 +22,62 @@
     @media(min-width:600px){.items{grid-template-columns:repeat(2,1fr)}}
     @media(min-width:960px){.items{grid-template-columns:repeat(3,1fr);max-width:1100px;margin:0 auto}}
     .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,0.08);cursor:pointer}
-    .card-header{display:flex;justify-content:space-between}
+    .card-header{display:flex;justify-content:space-between;align-items:flex-start}
     .badge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;color:#fff}
     .badge.pcb{background:#4285f4}.badge.socket{background:#0d904f}.badge.kit{background:#e8710a}
     .actions{display:flex;gap:4px}
-    .icon-btn{background:none;border:none;font-size:18px;cursor:pointer;opacity:0.5}
-    .name{font-weight:700;margin:8px 0 4px}
-    .meta{font-size:12px;color:#5f6368}
+    .icon-btn{background:none;border:none;font-size:18px;cursor:pointer;opacity:0.5;line-height:1}
+    .icon-btn:active{opacity:1}
+    .name{font-weight:700;margin:8px 0 4px;word-break:break-word}
+    .meta{font-size:12px;color:#5f6368;display:flex;gap:8px;flex-wrap:wrap}
     .qty{background:#f1f3f4;padding:2px 8px;border-radius:10px;font-weight:700}
     .image{width:100%;height:100px;object-fit:cover;border-radius:8px;margin-top:8px;background:#f5f5f5}
-    .fab{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;font-size:28px;border:none;box-shadow:0 4px 16px rgba(26,115,232,0.3);cursor:pointer;z-index:10}
+    .fab{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--primary);color:#fff;font-size:28px;border:none;box-shadow:0 4px 16px rgba(26,115,232,0.3);cursor:pointer;z-index:20;display:flex;align-items:center;justify-content:center}
     .modal{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:100}
     .modal-content{background:var(--card);border-radius:16px;width:90%;max-width:500px;padding:20px;max-height:80vh;overflow-y:auto}
     .form-group{margin-bottom:14px}
-    .form-group label{font-size:13px;font-weight:600;color:#5f6368}
-    .form-group input,.form-group select{width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:15px}
+    .form-group label{font-size:13px;font-weight:600;color:#5f6368;display:block;margin-bottom:4px}
+    .form-group input,.form-group select,.form-group textarea{width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;background:#fafafa}
+    .form-actions{display:flex;gap:10px;margin-top:20px}
+    .form-actions .btn{flex:1;padding:12px;border-radius:24px;font-size:15px;font-weight:600;border:none;cursor:pointer}
+    .btn-cancel{background:#f1f3f4;color:var(--text)}.btn-cancel:active{background:#e0e0e0}
+    .btn-save{background:var(--primary);color:#fff}.btn-save:active{background:#1557b0}
+    .img-upload{border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer}
+    .img-upload img{max-height:150px;border-radius:8px}
   </style>
 </head>
 <body>
-  <header class="header"><div>📋 库存盘点</div><button class="btn" onclick="exportExcel()">📥 导出</button></header>
+  <header class="header">
+    <div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">📋</span><strong>库存盘点</strong></div>
+    <button class="btn" onclick="exportExcel()">📥 导出</button>
+  </header>
   <div class="stats" id="stats"></div>
-  <div class="search"><input type="text" id="searchInput" placeholder="搜索..." oninput="renderItems()"></div>
+  <div class="search"><input type="text" id="searchInput" placeholder="搜索名称、型号或位置..." oninput="renderItems()"></div>
   <div class="items" id="itemsContainer"></div>
   <button class="fab" onclick="openAddModal()">+</button>
 
   <!-- 编辑弹窗 -->
   <div class="modal" id="editModal" style="display:none" onclick="if(event.target===this) closeModal()">
     <div class="modal-content">
-      <h3 id="modalTitle">添加物品</h3>
-      <form onsubmit="handleSubmit(event)">
-        <input type="hidden" id="editId">
+      <h3 id="modalTitle" style="text-align:center;margin-bottom:16px">添加物品</h3>
+      <form id="itemForm">
+        <input type="hidden" id="editId"><input type="hidden" id="editUpdatedAt">
         <div class="form-group"><label>类型 *</label><select id="editType" required><option value="">请选择</option><option value="PCB">PCB板</option><option value="Socket">Socket</option><option value="Kit">Kit</option></select></div>
-        <div class="form-group"><label>名称 *</label><input type="text" id="editName" required></div>
-        <div class="form-group"><label>型号</label><input type="text" id="editModel"></div>
-        <div class="form-group"><label>存放位置 *</label><input type="text" id="editLocation" required></div>
-        <div class="form-group"><label>数量</label><input type="number" id="editQty" value="1" min="1" required></div>
-        <div class="form-group"><label>备注</label><input type="text" id="editRemarks"></div>
-        <div class="form-group"><label>图片</label><input type="file" id="imageInput" accept="image/*" onchange="handleImageSelect(event)"></div>
-        <div style="display:flex;gap:10px;margin-top:20px">
-          <button type="button" class="btn" onclick="closeModal()">取消</button>
-          <button type="submit" class="btn primary" id="saveBtn">保存</button>
+        <div class="form-group"><label>名称 *</label><input type="text" id="editName" required maxlength="100"></div>
+        <div class="form-group"><label>型号 / 规格</label><input type="text" id="editModel" maxlength="100"></div>
+        <div class="form-group"><label>存放位置 *</label><input type="text" id="editLocation" required maxlength="200"></div>
+        <div class="form-group"><label>数量</label><input type="number" id="editQty" value="1" min="1" max="99999" required></div>
+        <div class="form-group"><label>备注</label><textarea id="editRemarks" rows="2" maxlength="500"></textarea></div>
+        <div class="form-group">
+          <label>物品图片</label>
+          <div class="img-upload" onclick="document.getElementById('imageInput').click()">
+            <img id="imagePreview" style="display:none"><span id="imgPlaceholder">📷 点击上传</span>
+          </div>
+          <input type="file" id="imageInput" accept="image/*" capture="environment" style="display:none" onchange="handleImageSelect(event)">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-cancel" onclick="closeModal()">取消</button>
+          <button type="submit" class="btn btn-save" id="saveBtn">保存</button>
         </div>
       </form>
     </div>
@@ -70,15 +86,15 @@
   <!-- 调拨弹窗 -->
   <div class="modal" id="moveModal" style="display:none" onclick="if(event.target===this) closeMoveModal()">
     <div class="modal-content">
-      <h3>📦 调拨库存</h3>
-      <form onsubmit="handleMove(event)">
+      <h3 style="text-align:center;margin-bottom:16px">📦 调拨库存</h3>
+      <form id="moveForm">
         <input type="hidden" id="moveId">
-        <div class="form-group"><label>物品信息</label><div id="moveInfo" style="background:#f5f5f5;padding:10px;border-radius:8px;"></div></div>
+        <div class="form-group"><label>当前物品</label><div id="moveInfo" style="background:#f5f5f5;padding:10px;border-radius:8px;"></div></div>
         <div class="form-group"><label>移出数量 *</label><input type="number" id="moveQty" min="1" required></div>
-        <div class="form-group"><label>目标位置 *</label><input type="text" id="moveTarget" required></div>
-        <div style="display:flex;gap:10px;margin-top:20px">
-          <button type="button" class="btn" onclick="closeMoveModal()">取消</button>
-          <button type="submit" class="btn primary">确认调拨</button>
+        <div class="form-group"><label>目标存放位置 *</label><input type="text" id="moveTarget" required placeholder="例如：合肥仓库"></div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-cancel" onclick="closeMoveModal()">取消</button>
+          <button type="submit" class="btn btn-save" id="moveSaveBtn">确认调拨</button>
         </div>
       </form>
     </div>
@@ -86,29 +102,51 @@
 
   <script>
     (function() {
-      // ========== 配置 ==========
+      // ==================== 配置 ====================
       const SUPABASE_URL = 'https://xxtpvfawljtutcwrmqlf.supabase.co';
-      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4dHB2ZmF3bGp0dXRjd3JtcWxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MzA4MTksImV4cCI6MjA5ODMwNjgxOX0.8He-VruLiNVSmHpGO611Bt0ff8oOdUp1FYRQJiFayGE'; // 👈 请务必换成正确的 anon key
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4dHB2ZmF3bGp0dXRjd3JtcWxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MzA4MTksImV4cCI6MjA5ODMwNjgxOX0.8He-VruLiNVSmHpGO611Bt0ff8oOdUp1FYRQJiFayGE';
 
       const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       let items = [];
       let currentFilter = 'all';
       let pendingImageFile = null;
+      let editingItem = null;
 
-      // 初始化
-      async function init() {
-        await loadItems();
-        supabase.channel('items-changes').on('postgres_changes', { event:'*', schema:'public', table:'items' }, () => loadItems()).subscribe();
+      // 辅助函数：转义 HTML
+      function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str || '';
+        return div.innerHTML;
+      }
+      window.escapeHtml = escapeHtml;
+
+      // 格式化时间
+      function formatTime(d) {
+        if (!d) return '';
+        const diff = Math.floor((Date.now() - new Date(d)) / 1000);
+        if (diff < 60) return '刚刚';
+        if (diff < 3600) return `${Math.floor(diff/60)}分钟前`;
+        if (diff < 86400) return `${Math.floor(diff/3600)}小时前`;
+        return new Date(d).toLocaleDateString('zh-CN');
       }
 
+      // 加载数据
       async function loadItems() {
         const { data, error } = await supabase.from('items').select('*').order('updated_at', { ascending: false });
-        if (error) { console.error(error); alert('连接数据库失败，请检查 Key 或 Supabase 状态'); return; }
+        if (error) { console.error(error); return; }
         items = data || [];
         updateStats();
         renderItems();
       }
 
+      // 实时订阅
+      async function subscribeToChanges() {
+        supabase.channel('items-changes')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, () => loadItems())
+          .subscribe();
+      }
+
+      // 更新统计
       function updateStats() {
         const all = items.length;
         const pcb = items.filter(i=>i.type==='PCB').length;
@@ -122,6 +160,7 @@
         `;
       }
 
+      // 设置过滤
       window.setFilter = function(type, el) {
         currentFilter = type;
         document.querySelectorAll('.stat').forEach(s=>s.classList.remove('active'));
@@ -129,7 +168,8 @@
         renderItems();
       };
 
-      function renderItems() {
+      // 渲染列表
+      window.renderItems = function() {
         const q = document.getElementById('searchInput').value.trim().toLowerCase();
         let filtered = items;
         if (currentFilter !== 'all') filtered = filtered.filter(i=>i.type===currentFilter);
@@ -139,27 +179,34 @@
           container.innerHTML = '<div style="text-align:center;padding:48px;color:#999;">📭 暂无记录</div>';
           return;
         }
-        container.innerHTML = filtered.map(item => `
+        container.innerHTML = filtered.map(item => {
+          const badgeClass = item.type==='PCB'?'pcb':item.type==='Socket'?'socket':'kit';
+          const imgHtml = item.image ? `<img class="image" src="${escapeHtml(item.image)}" alt="">` : '';
+          const modelHtml = item.model ? `<div style="font-size:13px;color:#666;">📐 ${escapeHtml(item.model)}</div>` : '';
+          return `
           <div class="card" onclick="openEditModal('${item.id}')">
             <div class="card-header">
-              <span class="badge ${item.type==='PCB'?'pcb':item.type==='Socket'?'socket':'kit'}">${item.type}</span>
+              <span class="badge ${badgeClass}">${escapeHtml(item.type)}</span>
               <div class="actions">
                 <button class="icon-btn" style="color:#1a73e8" onclick="event.stopPropagation();openMoveModal('${item.id}')">🚚</button>
-                <button class="icon-btn" style="color:#d93025" onclick="event.stopPropagation();deleteItem('${item.id}','${item.name}')">🗑️</button>
+                <button class="icon-btn" style="color:#d93025" onclick="event.stopPropagation();deleteItem('${item.id}','${escapeHtml(item.name)}')">🗑️</button>
               </div>
             </div>
-            <div class="name">${item.name}</div>
-            ${item.model ? `<div style="font-size:13px;color:#666;">📐 ${item.model}</div>` : ''}
-            <div class="meta"><span>📍 ${item.location}</span><span class="qty">📦 ${item.quantity}</span></div>
-            ${item.image ? `<img class="image" src="${item.image}">` : ''}
-            <div style="font-size:11px;color:#999;">🕐 ${new Date(item.updated_at).toLocaleString()}</div>
-          </div>
-        `).join('');
-      }
+            <div class="name">${escapeHtml(item.name||'未命名')}</div>
+            ${modelHtml}
+            <div class="meta"><span>📍 ${escapeHtml(item.location)}</span><span class="qty">📦 ${item.quantity||1}</span></div>
+            ${imgHtml}
+            <div style="font-size:11px;color:#999;margin-top:4px;">🕐 ${formatTime(item.updated_at)}</div>
+          </div>`;
+        }).join('');
+      };
 
+      // 添加弹窗
       window.openAddModal = function() {
-        document.getElementById('editId').value = '';
+        editingItem = null;
         document.getElementById('modalTitle').textContent = '添加物品';
+        document.getElementById('editId').value = '';
+        document.getElementById('editUpdatedAt').value = '';
         document.getElementById('editType').value = '';
         document.getElementById('editName').value = '';
         document.getElementById('editModel').value = '';
@@ -168,16 +215,18 @@
         document.getElementById('editRemarks').value = '';
         document.getElementById('saveBtn').textContent = '保存';
         document.getElementById('saveBtn').disabled = false;
-        pendingImageFile = null;
-        document.getElementById('imageInput').value = '';
+        clearImagePreview();
         document.getElementById('editModal').style.display = 'flex';
       };
 
+      // 编辑弹窗
       window.openEditModal = function(id) {
         const item = items.find(i=>i.id===id);
-        if (!item) return;
-        document.getElementById('editId').value = item.id;
+        if (!item) { loadItems(); return; }
+        editingItem = item;
         document.getElementById('modalTitle').textContent = '编辑物品';
+        document.getElementById('editId').value = item.id;
+        document.getElementById('editUpdatedAt').value = item.updated_at;
         document.getElementById('editType').value = item.type;
         document.getElementById('editName').value = item.name;
         document.getElementById('editModel').value = item.model||'';
@@ -186,19 +235,39 @@
         document.getElementById('editRemarks').value = item.remarks||'';
         document.getElementById('saveBtn').textContent = '更新';
         document.getElementById('saveBtn').disabled = false;
-        pendingImageFile = null;
+        clearImagePreview();
+        if (item.image) setImagePreview(item.image);
         document.getElementById('editModal').style.display = 'flex';
       };
 
       window.closeModal = function() { document.getElementById('editModal').style.display = 'none'; };
 
+      // 图片处理
+      function clearImagePreview() {
+        pendingImageFile = null;
+        document.getElementById('imageInput').value = '';
+        document.getElementById('imagePreview').style.display = 'none';
+        document.getElementById('imgPlaceholder').style.display = 'block';
+      }
+
+      function setImagePreview(url) {
+        document.getElementById('imagePreview').src = url;
+        document.getElementById('imagePreview').style.display = 'block';
+        document.getElementById('imgPlaceholder').style.display = 'none';
+      }
+
       window.handleImageSelect = function(e) {
         const file = e.target.files[0];
         if (!file) return;
+        if (file.size > 10*1024*1024) { alert('图片不能超过10MB'); return; }
         pendingImageFile = file;
+        const reader = new FileReader();
+        reader.onload = ev => setImagePreview(ev.target.result);
+        reader.readAsDataURL(file);
       };
 
-      window.handleSubmit = async function(e) {
+      // 保存物品
+      async function handleSubmit(e) {
         e.preventDefault();
         const id = document.getElementById('editId').value;
         const type = document.getElementById('editType').value;
@@ -207,10 +276,13 @@
         const location = document.getElementById('editLocation').value.trim();
         const quantity = parseInt(document.getElementById('editQty').value)||1;
         const remarks = document.getElementById('editRemarks').value.trim();
-        if (!type || !name || !location) { alert('请填写必填项'); return; }
+
+        if (!type || !name || !location) { alert('请填写类型、名称和位置'); return; }
+
         const btn = document.getElementById('saveBtn');
         btn.disabled = true; btn.textContent = '保存中...';
-        let imageUrl = id ? items.find(i=>i.id===id)?.image || '' : '';
+
+        let imageUrl = editingItem?.image || '';
         try {
           if (pendingImageFile) {
             const fileName = `${Date.now()}.${pendingImageFile.name.split('.').pop()}`;
@@ -219,7 +291,7 @@
             const { data: { publicUrl } } = supabase.storage.from('image').getPublicUrl(fileName);
             imageUrl = publicUrl;
           }
-          const itemData = { type, name, model, location, quantity, remarks, image: imageUrl, updated_at: new Date() };
+          const itemData = { type, name, model, location, quantity, remarks, image: imageUrl, updated_at: new Date().toISOString() };
           if (id) {
             const { error } = await supabase.from('items').update(itemData).eq('id', id);
             if (error) throw error;
@@ -234,10 +306,13 @@
           btn.disabled = false;
           btn.textContent = id ? '更新' : '保存';
         }
-      };
+      }
 
+      document.getElementById('itemForm').addEventListener('submit', handleSubmit);
+
+      // 删除物品
       window.deleteItem = async function(id, name) {
-        if (!confirm(`确定删除「${name}」？`)) return;
+        if (!confirm(`确定删除「${name||'该项目'}」？`)) return;
         const item = items.find(i=>i.id===id);
         if (item?.image) {
           const path = item.image.split('/').pop();
@@ -248,61 +323,112 @@
         loadItems();
       };
 
+      // 调拨弹窗
       window.openMoveModal = function(id) {
         const item = items.find(i=>i.id===id);
         if (!item) return;
         document.getElementById('moveId').value = id;
-        document.getElementById('moveInfo').innerHTML = `<strong>${item.name}</strong> · ${item.type}<br>📍 ${item.location} · 📦 库存：${item.quantity}`;
+        document.getElementById('moveInfo').innerHTML = `<strong>${escapeHtml(item.name)}</strong> · ${item.type}<br>📍 ${escapeHtml(item.location)} · 📦 库存：${item.quantity}`;
         document.getElementById('moveQty').max = item.quantity;
         document.getElementById('moveQty').value = 1;
         document.getElementById('moveTarget').value = '';
+
+        // 重置按钮状态
+        const btn = document.getElementById('moveSaveBtn');
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '确认调拨';
+        }
+
         document.getElementById('moveModal').style.display = 'flex';
       };
 
       window.closeMoveModal = function() { document.getElementById('moveModal').style.display = 'none'; };
 
-      window.handleMove = async function(e) {
+      // 执行调拨
+      async function handleMove(e) {
         e.preventDefault();
         const id = document.getElementById('moveId').value;
         const qty = parseInt(document.getElementById('moveQty').value);
         const target = document.getElementById('moveTarget').value.trim();
         const source = items.find(i=>i.id===id);
         if (!source) return;
-        if (qty > source.quantity || qty < 1) { alert('数量错误'); return; }
-        const btn = e.target.querySelector('button[type=submit]');
-        btn.disabled = true; btn.textContent = '调拨中...';
-        try {
-          if (qty === source.quantity) {
-            await supabase.from('items').delete().eq('id', id);
-          } else {
-            await supabase.from('items').update({ quantity: source.quantity - qty, updated_at: new Date() }).eq('id', id);
-          }
-          const { data: existing } = await supabase.from('items').select('*').eq('location', target).eq('type', source.type).eq('name', source.name).eq('model', source.model);
-          if (existing && existing.length > 0) {
-            await supabase.from('items').update({ quantity: existing[0].quantity + qty, updated_at: new Date() }).eq('id', existing[0].id);
-          } else {
-            await supabase.from('items').insert([{ type: source.type, name: source.name, model: source.model, location: target, quantity: qty, remarks: source.remarks, image: source.image }]);
-          }
-          closeMoveModal();
-          loadItems();
-        } catch (err) {
-          alert('调拨失败: ' + err.message);
-          btn.disabled = false; btn.textContent = '确认调拨';
-        }
-      };
+        if (!qty || qty<1 || qty>source.quantity) { alert('数量错误'); return; }
+        if (!target) { alert('请输入目标位置'); return; }
 
+        const btn = document.getElementById('moveSaveBtn');
+        btn.disabled = true; btn.textContent = '调拨中...';
+
+        try {
+          // 1. 更新源数量或删除
+          if (qty === source.quantity) {
+            const { error } = await supabase.from('items').delete().eq('id', id);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase.from('items')
+              .update({ quantity: source.quantity - qty, updated_at: new Date().toISOString() })
+              .eq('id', id);
+            if (error) throw error;
+          }
+
+          // 2. 查找目标位置相同物品（类型、名称、型号一致）
+          const { data: existing, error: findErr } = await supabase.from('items')
+            .select('*')
+            .eq('location', target)
+            .eq('type', source.type)
+            .eq('name', source.name)
+            .eq('model', source.model || '');
+
+          if (findErr) throw findErr;
+
+          if (existing && existing.length > 0) {
+            // 已有，增加数量
+            const { error } = await supabase.from('items')
+              .update({ quantity: existing[0].quantity + qty, updated_at: new Date().toISOString() })
+              .eq('id', existing[0].id);
+            if (error) throw error;
+          } else {
+            // 没有，创建新记录
+            const { error } = await supabase.from('items').insert([{
+              type: source.type,
+              name: source.name,
+              model: source.model || '',
+              location: target,
+              quantity: qty,
+              remarks: source.remarks || '',
+              image: source.image || ''
+            }]);
+            if (error) throw error;
+          }
+
+          closeMoveModal();
+          loadItems();  // 刷新列表
+        } catch (err) {
+          console.error('调拨失败:', err);
+          alert('调拨失败: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = '确认调拨';
+        }
+      }
+
+      document.getElementById('moveForm').addEventListener('submit', handleMove);
+
+      // 导出 Excel
       window.exportExcel = function() {
-        const data = items.map(i=>({ 类型:i.type, 名称:i.name, 型号:i.model, 位置:i.location, 数量:i.quantity, 备注:i.remarks }));
+        const filtered = currentFilter==='all' ? items : items.filter(i=>i.type===currentFilter);
+        const data = filtered.map(i=>({
+          类型:i.type, 名称:i.name, 型号:i.model, 位置:i.location,
+          数量:i.quantity, 备注:i.remarks, 更新时间:new Date(i.updated_at).toLocaleString()
+        }));
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, '库存');
-        XLSX.writeFile(wb, '库存盘点.xlsx');
+        XLSX.writeFile(wb, `库存盘点_${new Date().toISOString().slice(0,10)}.xlsx`);
       };
 
-      // 把一些函数暴露到全局，供 HTML onclick 使用
-      window.renderItems = renderItems;
-      window.init = init;
-      init();
+      // 初始化
+      loadItems();
+      subscribeToChanges();
     })();
   </script>
 </body>
