@@ -249,14 +249,20 @@
       };
 
       window.openMoveModal = function(id) {
-        const item = items.find(i=>i.id===id);
-        if (!item) return;
-        document.getElementById('moveId').value = id;
-        document.getElementById('moveInfo').innerHTML = `<strong>${item.name}</strong> · ${item.type}<br>📍 ${item.location} · 📦 库存：${item.quantity}`;
-        document.getElementById('moveQty').max = item.quantity;
-        document.getElementById('moveQty').value = 1;
-        document.getElementById('moveTarget').value = '';
-        document.getElementById('moveModal').style.display = 'flex';
+          const item = items.find(i=>i.id===id);
+          if (!item) return;
+          document.getElementById('moveId').value = id;
+          document.getElementById('moveInfo').innerHTML = `<strong>${escapeHtml(item.name)}</strong> · ${item.type}<br>📍 ${escapeHtml(item.location)} · 📦 库存：${item.quantity}`;
+          document.getElementById('moveQty').max = item.quantity;
+          document.getElementById('moveQty').value = 1;
+          document.getElementById('moveTarget').value = '';
+          // 重置按钮状态（重要！）
+          const btn = document.querySelector('#moveForm .btn-save');
+          if (btn) {
+              btn.disabled = false;
+              btn.textContent = '确认调拨';
+          }
+          document.getElementById('moveModal').style.display = 'flex';
       };
 
       window.closeMoveModal = function() { document.getElementById('moveModal').style.display = 'none'; };
