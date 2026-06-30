@@ -248,92 +248,47 @@
         loadItems();
       };
 
-     window.openMoveModal = function(id) {
-          const item = items.find(i => i.id === id);
-          if (!item) return;
-          document.getElementById('moveId').value = id;
-          document.getElementById('moveInfo').innerHTML = `<strong>${item.name}</strong> · ${item.type}<br>📍 ${item.location} · 📦 库存：${item.quantity}`;
-          document.getElementById('moveQty').max = item.quantity;
-          document.getElementById('moveQty').value = 1;
-          document.getElementById('moveTarget').value = '';
-      
-          // ✅ 每次打开弹窗时，强制恢复按钮文字和可用状态
-          const btn = document.querySelector('#moveForm .btn-save');
-          if (btn) {
-              btn.disabled = false;
-              btn.textContent = '确认调拨';
-          }
-      
-          document.getElementById('moveModal').style.display = 'flex';
+      window.openMoveModal = function(id) {
+        const item = items.find(i=>i.id===id);
+        if (!item) return;
+        document.getElementById('moveId').value = id;
+        document.getElementById('moveInfo').innerHTML = `<strong>${item.name}</strong> · ${item.type}<br>📍 ${item.location} · 📦 库存：${item.quantity}`;
+        document.getElementById('moveQty').max = item.quantity;
+        document.getElementById('moveQty').value = 1;
+        document.getElementById('moveTarget').value = '';
+        document.getElementById('moveModal').style.display = 'flex';
       };
 
       window.closeMoveModal = function() { document.getElementById('moveModal').style.display = 'none'; };
 
-      async function handleMove(e) {
-          e.preventDefault();
-          const id = document.getElementById('moveId').value;
-          const qty = parseInt(document.getElementById('moveQty').value);
-          const target = document.getElementById('moveTarget').value.trim();
-          const source = items.find(i => i.id === id);
-          if (!source) return;
-          if (!qty || qty < 1 || qty > source.quantity) { alert('数量错误'); return; }
-          if (!target) { alert('请输入目标位置'); return; }
-      
-          const btn = document.querySelector('#moveForm .btn-save');
-          btn.disabled = true; btn.textContent = '调拨中...';
-      
-          try {
-              // 1. 处理源物品
-              if (qty === source.quantity) {
-                  const { error: delErr } = await supabase.from('items').delete().eq('id', id);
-                  if (delErr) throw delErr;
-              } else {
-                  const { error: updErr } = await supabase.from('items')
-                      .update({ quantity: source.quantity - qty, updated_at: new Date().toISOString() })
-                      .eq('id', id);
-                  if (updErr) throw updErr;
-              }
-      
-              // 2. 查找目标位置是否存在【类型、名称、型号完全相同】的物品
-              const { data: existing, error: findErr } = await supabase.from('items')
-                  .select('*')
-                  .eq('location', target)
-                  .eq('type', source.type)
-                  .eq('name', source.name)
-                  .eq('model', source.model || '');   // 型号可能为空字符串
-      
-              if (findErr) throw findErr;
-      
-              if (existing && existing.length > 0) {
-                  // 已存在，增加数量
-                  const { error: addErr } = await supabase.from('items')
-                      .update({ quantity: existing[0].quantity + qty, updated_at: new Date().toISOString() })
-                      .eq('id', existing[0].id);
-                  if (addErr) throw addErr;
-              } else {
-                  // 不存在，创建新记录
-                  const { error: insErr } = await supabase.from('items').insert([{
-                      type: source.type,
-                      name: source.name,
-                      model: source.model || '',
-                      location: target,
-                      quantity: qty,
-                      remarks: source.remarks || '',
-                      image: source.image || ''
-                  }]);
-                  if (insErr) throw insErr;
-              }
-      
-              closeMoveModal();
-              // ✅ 强制重新加载数据（解决数量不变问题）
-              await loadItems();
-          } catch (err) {
-              console.error('调拨失败:', err);
-              alert('调拨失败: ' + err.message);
-              // 恢复按钮状态
-              btn.disabled = false;
-              btn.textContent = '确认调拨';
+      window.handleMove = async function(e) {
+        e.preventDefault();
+        const id = document.getElementById('moveId').value;
+        const qty = parseInt(document.getElementById('moveQty').value);
+        const target = document.getElementById('moveTarget').value.trim();
+        const source = items.find(i=>i.id===id);
+        if (!source) return;
+        if (qty > source.quantity || qty < 1) { alert('数量错误'); return; }
+        const btn = e.target.querySelector('button[type=submit]');
+        btn.disabled = true; btn.textContent = '调拨中...';
+        try {
+          if (qty === source.quantity) {
+            await supabase.from('items').delete().eq('id', id);
+          } else {
+            await supabase.from('items').update({ quantity: source.quantity - qty, updated_at: new Date() }).eq('id', id);
           }
+          const { data: existing } = await supabase.from('items').select('*').eq('location', target).eq('type', source.type).eq('name', source.name).eq('model', source.model);
+          if (existing && existing.length > 0) {
+            await supabase.from('items').update({ quantity: existing[0].quantity + qty, updated_at: new Date() }).eq('id', existing[0].id);
+          } else {
+            await supabase.from('items').insert([{ type: source.type, name: source.name, model: source.model, location: target, quantity: qty, remarks: source.remarks, image: source.image }]);
+          }
+          closeMoveModal();
+          loadItems();
+        } catch (err) {
+          alert('调拨失败: ' + err.message);
+          btn.disabled = false; btn.textContent = '确认调拨';
+        }
       };
 
       window.exportExcel = function() {
