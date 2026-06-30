@@ -214,9 +214,9 @@
         try {
           if (pendingImageFile) {
             const fileName = `${Date.now()}.${pendingImageFile.name.split('.').pop()}`;
-            const { error } = await supabase.storage.from('images').upload(fileName, pendingImageFile);
+            const { error } = await supabase.storage.from('image').upload(fileName, pendingImageFile);
             if (error) throw error;
-            const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(fileName);
+            const { data: { publicUrl } } = supabase.storage.from('image').getPublicUrl(fileName);
             imageUrl = publicUrl;
           }
           const itemData = { type, name, model, location, quantity, remarks, image: imageUrl, updated_at: new Date() };
@@ -241,7 +241,7 @@
         const item = items.find(i=>i.id===id);
         if (item?.image) {
           const path = item.image.split('/').pop();
-          await supabase.storage.from('images').remove([path]);
+          await supabase.storage.from('image').remove([path]);
         }
         const { error } = await supabase.from('items').delete().eq('id', id);
         if (error) { alert('删除失败'); return; }
