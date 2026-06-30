@@ -283,29 +283,57 @@
           btn.disabled = true; btn.textContent = '调拨中...';
       
           try {
+              // 1. 处理源物品
               if (qty === source.quantity) {
-                  await supabase.from('items').delete().eq('id', id);
+                  const { error: delErr } = await supabase.from('items').delete().eq('id', id);
+                  if (delErr) throw delErr;
               } else {
-                  await supabase.from('items').update({ quantity: source.quantity - qty, updated_at: new Date().toISOString() }).eq('id', id);
+                  const { error: updErr } = await supabase.from('items')
+                      .update({ quantity: source.quantity - qty, updated_at: new Date().toISOString() })
+                      .eq('id', id);
+                  if (updErr) throw updErr;
               }
-              const { data: existing } = await supabase.from('items').select('*').eq('location', target).eq('type', source.type).eq('name', source.name).eq('model', source.model);
+      
+              // 2. 查找目标位置是否存在【类型、名称、型号完全相同】的物品
+              const { data: existing, error: findErr } = await supabase.from('items')
+                  .select('*')
+                  .eq('location', target)
+                  .eq('type', source.type)
+                  .eq('name', source.name)
+                  .eq('model', source.model || '');   // 型号可能为空字符串
+      
+              if (findErr) throw findErr;
+      
               if (existing && existing.length > 0) {
-                  await supabase.from('items').update({ quantity: existing[0].quantity + qty, updated_at: new Date().toISOString() }).eq('id', existing[0].id);
+                  // 已存在，增加数量
+                  const { error: addErr } = await supabase.from('items')
+                      .update({ quantity: existing[0].quantity + qty, updated_at: new Date().toISOString() })
+                      .eq('id', existing[0].id);
+                  if (addErr) throw addErr;
               } else {
-                  await supabase.from('items').insert([{
-                      type: source.type, name: source.name, model: source.model,
-                      location: target, quantity: qty, remarks: source.remarks, image: source.image
+                  // 不存在，创建新记录
+                  const { error: insErr } = await supabase.from('items').insert([{
+                      type: source.type,
+                      name: source.name,
+                      model: source.model || '',
+                      location: target,
+                      quantity: qty,
+                      remarks: source.remarks || '',
+                      image: source.image || ''
                   }]);
+                  if (insErr) throw insErr;
               }
+      
               closeMoveModal();
-              loadItems();
+              // ✅ 强制重新加载数据（解决数量不变问题）
+              await loadItems();
           } catch (err) {
+              console.error('调拨失败:', err);
               alert('调拨失败: ' + err.message);
-              // ✅ 失败时也要恢复按钮，否则下次打开还是禁用状态
+              // 恢复按钮状态
               btn.disabled = false;
               btn.textContent = '确认调拨';
           }
-
       };
 
       window.exportExcel = function() {
