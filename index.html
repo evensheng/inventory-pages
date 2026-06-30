@@ -85,218 +85,225 @@
   </div>
 
   <script>
-    // ========== 配置（只声明一次） ==========
-    const SUPABASE_URL = 'https://xxtpvfawljtutcwrmqlf.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_zS180ZNd8WDIILjhATcoLQ_71zX1pcP'; // 👈 替换成你的 anon public key
+    (function() {
+      // ========== 配置 ==========
+      const SUPABASE_URL = 'https://xxtpvfawljtutcwrmqlf.supabase.co';
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4dHB2ZmF3bGp0dXRjd3JtcWxmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MzA4MTksImV4cCI6MjA5ODMwNjgxOX0.8He-VruLiNVSmHpGO611Bt0ff8oOdUp1FYRQJiFayGE'; // 👈 请务必换成正确的 anon key
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    let items = [];
-    let currentFilter = 'all';
-    let pendingImageFile = null;
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      let items = [];
+      let currentFilter = 'all';
+      let pendingImageFile = null;
 
-    async function init() {
-      await loadItems();
-      supabase.channel('items-changes').on('postgres_changes', { event:'*', schema:'public', table:'items' }, () => loadItems()).subscribe();
-    }
-
-    async function loadItems() {
-      const { data, error } = await supabase.from('items').select('*').order('updated_at', { ascending: false });
-      if (error) { console.error('加载失败:', error); alert('无法连接数据库，请检查 Supabase 设置'); return; }
-      items = data || [];
-      updateStats();
-      renderItems();
-    }
-
-    function updateStats() {
-      const all = items.length;
-      const pcb = items.filter(i=>i.type==='PCB').length;
-      const socket = items.filter(i=>i.type==='Socket').length;
-      const kit = items.filter(i=>i.type==='Kit').length;
-      document.getElementById('stats').innerHTML = `
-        <div class="stat active" onclick="setFilter('all', this)">全部 ${all}</div>
-        <div class="stat" onclick="setFilter('PCB', this)">PCB ${pcb}</div>
-        <div class="stat" onclick="setFilter('Socket', this)">Socket ${socket}</div>
-        <div class="stat" onclick="setFilter('Kit', this)">Kit ${kit}</div>
-      `;
-    }
-
-    function setFilter(type, el) {
-      currentFilter = type;
-      document.querySelectorAll('.stat').forEach(s=>s.classList.remove('active'));
-      el.classList.add('active');
-      renderItems();
-    }
-
-    function renderItems() {
-      const q = document.getElementById('searchInput').value.trim().toLowerCase();
-      let filtered = items;
-      if (currentFilter !== 'all') filtered = filtered.filter(i=>i.type===currentFilter);
-      if (q) filtered = filtered.filter(i=> (i.name||'').toLowerCase().includes(q) || (i.model||'').toLowerCase().includes(q) || (i.location||'').toLowerCase().includes(q));
-      const container = document.getElementById('itemsContainer');
-      if (!filtered.length) {
-        container.innerHTML = '<div style="text-align:center;padding:48px;color:#999;">📭 暂无记录</div>';
-        return;
+      // 初始化
+      async function init() {
+        await loadItems();
+        supabase.channel('items-changes').on('postgres_changes', { event:'*', schema:'public', table:'items' }, () => loadItems()).subscribe();
       }
-      container.innerHTML = filtered.map(item => `
-        <div class="card" onclick="openEditModal('${item.id}')">
-          <div class="card-header">
-            <span class="badge ${item.type==='PCB'?'pcb':item.type==='Socket'?'socket':'kit'}">${item.type}</span>
-            <div class="actions">
-              <button class="icon-btn" style="color:#1a73e8" onclick="event.stopPropagation();openMoveModal('${item.id}')">🚚</button>
-              <button class="icon-btn" style="color:#d93025" onclick="event.stopPropagation();deleteItem('${item.id}','${item.name}')">🗑️</button>
+
+      async function loadItems() {
+        const { data, error } = await supabase.from('items').select('*').order('updated_at', { ascending: false });
+        if (error) { console.error(error); alert('连接数据库失败，请检查 Key 或 Supabase 状态'); return; }
+        items = data || [];
+        updateStats();
+        renderItems();
+      }
+
+      function updateStats() {
+        const all = items.length;
+        const pcb = items.filter(i=>i.type==='PCB').length;
+        const socket = items.filter(i=>i.type==='Socket').length;
+        const kit = items.filter(i=>i.type==='Kit').length;
+        document.getElementById('stats').innerHTML = `
+          <div class="stat active" onclick="setFilter('all', this)">全部 ${all}</div>
+          <div class="stat" onclick="setFilter('PCB', this)">PCB ${pcb}</div>
+          <div class="stat" onclick="setFilter('Socket', this)">Socket ${socket}</div>
+          <div class="stat" onclick="setFilter('Kit', this)">Kit ${kit}</div>
+        `;
+      }
+
+      window.setFilter = function(type, el) {
+        currentFilter = type;
+        document.querySelectorAll('.stat').forEach(s=>s.classList.remove('active'));
+        el.classList.add('active');
+        renderItems();
+      };
+
+      function renderItems() {
+        const q = document.getElementById('searchInput').value.trim().toLowerCase();
+        let filtered = items;
+        if (currentFilter !== 'all') filtered = filtered.filter(i=>i.type===currentFilter);
+        if (q) filtered = filtered.filter(i=> (i.name||'').toLowerCase().includes(q) || (i.model||'').toLowerCase().includes(q) || (i.location||'').toLowerCase().includes(q));
+        const container = document.getElementById('itemsContainer');
+        if (!filtered.length) {
+          container.innerHTML = '<div style="text-align:center;padding:48px;color:#999;">📭 暂无记录</div>';
+          return;
+        }
+        container.innerHTML = filtered.map(item => `
+          <div class="card" onclick="openEditModal('${item.id}')">
+            <div class="card-header">
+              <span class="badge ${item.type==='PCB'?'pcb':item.type==='Socket'?'socket':'kit'}">${item.type}</span>
+              <div class="actions">
+                <button class="icon-btn" style="color:#1a73e8" onclick="event.stopPropagation();openMoveModal('${item.id}')">🚚</button>
+                <button class="icon-btn" style="color:#d93025" onclick="event.stopPropagation();deleteItem('${item.id}','${item.name}')">🗑️</button>
+              </div>
             </div>
+            <div class="name">${item.name}</div>
+            ${item.model ? `<div style="font-size:13px;color:#666;">📐 ${item.model}</div>` : ''}
+            <div class="meta"><span>📍 ${item.location}</span><span class="qty">📦 ${item.quantity}</span></div>
+            ${item.image ? `<img class="image" src="${item.image}">` : ''}
+            <div style="font-size:11px;color:#999;">🕐 ${new Date(item.updated_at).toLocaleString()}</div>
           </div>
-          <div class="name">${item.name}</div>
-          ${item.model ? `<div style="font-size:13px;color:#666;">📐 ${item.model}</div>` : ''}
-          <div class="meta"><span>📍 ${item.location}</span><span class="qty">📦 ${item.quantity}</span></div>
-          ${item.image ? `<img class="image" src="${item.image}">` : ''}
-          <div style="font-size:11px;color:#999;">🕐 ${new Date(item.updated_at).toLocaleString()}</div>
-        </div>
-      `).join('');
-    }
+        `).join('');
+      }
 
-    function openAddModal() {
-      document.getElementById('editId').value = '';
-      document.getElementById('modalTitle').textContent = '添加物品';
-      document.getElementById('editType').value = '';
-      document.getElementById('editName').value = '';
-      document.getElementById('editModel').value = '';
-      document.getElementById('editLocation').value = '';
-      document.getElementById('editQty').value = 1;
-      document.getElementById('editRemarks').value = '';
-      document.getElementById('saveBtn').textContent = '保存';
-      document.getElementById('saveBtn').disabled = false;
-      pendingImageFile = null;
-      document.getElementById('imageInput').value = '';
-      document.getElementById('editModal').style.display = 'flex';
-    }
+      window.openAddModal = function() {
+        document.getElementById('editId').value = '';
+        document.getElementById('modalTitle').textContent = '添加物品';
+        document.getElementById('editType').value = '';
+        document.getElementById('editName').value = '';
+        document.getElementById('editModel').value = '';
+        document.getElementById('editLocation').value = '';
+        document.getElementById('editQty').value = 1;
+        document.getElementById('editRemarks').value = '';
+        document.getElementById('saveBtn').textContent = '保存';
+        document.getElementById('saveBtn').disabled = false;
+        pendingImageFile = null;
+        document.getElementById('imageInput').value = '';
+        document.getElementById('editModal').style.display = 'flex';
+      };
 
-    function openEditModal(id) {
-      const item = items.find(i=>i.id===id);
-      if (!item) return;
-      document.getElementById('editId').value = item.id;
-      document.getElementById('modalTitle').textContent = '编辑物品';
-      document.getElementById('editType').value = item.type;
-      document.getElementById('editName').value = item.name;
-      document.getElementById('editModel').value = item.model||'';
-      document.getElementById('editLocation').value = item.location;
-      document.getElementById('editQty').value = item.quantity;
-      document.getElementById('editRemarks').value = item.remarks||'';
-      document.getElementById('saveBtn').textContent = '更新';
-      document.getElementById('saveBtn').disabled = false;
-      pendingImageFile = null;
-      document.getElementById('editModal').style.display = 'flex';
-    }
+      window.openEditModal = function(id) {
+        const item = items.find(i=>i.id===id);
+        if (!item) return;
+        document.getElementById('editId').value = item.id;
+        document.getElementById('modalTitle').textContent = '编辑物品';
+        document.getElementById('editType').value = item.type;
+        document.getElementById('editName').value = item.name;
+        document.getElementById('editModel').value = item.model||'';
+        document.getElementById('editLocation').value = item.location;
+        document.getElementById('editQty').value = item.quantity;
+        document.getElementById('editRemarks').value = item.remarks||'';
+        document.getElementById('saveBtn').textContent = '更新';
+        document.getElementById('saveBtn').disabled = false;
+        pendingImageFile = null;
+        document.getElementById('editModal').style.display = 'flex';
+      };
 
-    function closeModal() { document.getElementById('editModal').style.display = 'none'; }
+      window.closeModal = function() { document.getElementById('editModal').style.display = 'none'; };
 
-    function handleImageSelect(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      pendingImageFile = file;
-    }
+      window.handleImageSelect = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        pendingImageFile = file;
+      };
 
-    async function handleSubmit(e) {
-      e.preventDefault();
-      const id = document.getElementById('editId').value;
-      const type = document.getElementById('editType').value;
-      const name = document.getElementById('editName').value.trim();
-      const model = document.getElementById('editModel').value.trim();
-      const location = document.getElementById('editLocation').value.trim();
-      const quantity = parseInt(document.getElementById('editQty').value)||1;
-      const remarks = document.getElementById('editRemarks').value.trim();
-      if (!type || !name || !location) { alert('请填写必填项'); return; }
-      const btn = document.getElementById('saveBtn');
-      btn.disabled = true; btn.textContent = '保存中...';
-      let imageUrl = id ? items.find(i=>i.id===id)?.image || '' : '';
-      try {
-        if (pendingImageFile) {
-          const fileName = `${Date.now()}.${pendingImageFile.name.split('.').pop()}`;
-          const { error } = await supabase.storage.from('images').upload(fileName, pendingImageFile);
-          if (error) throw error;
-          const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(fileName);
-          imageUrl = publicUrl;
+      window.handleSubmit = async function(e) {
+        e.preventDefault();
+        const id = document.getElementById('editId').value;
+        const type = document.getElementById('editType').value;
+        const name = document.getElementById('editName').value.trim();
+        const model = document.getElementById('editModel').value.trim();
+        const location = document.getElementById('editLocation').value.trim();
+        const quantity = parseInt(document.getElementById('editQty').value)||1;
+        const remarks = document.getElementById('editRemarks').value.trim();
+        if (!type || !name || !location) { alert('请填写必填项'); return; }
+        const btn = document.getElementById('saveBtn');
+        btn.disabled = true; btn.textContent = '保存中...';
+        let imageUrl = id ? items.find(i=>i.id===id)?.image || '' : '';
+        try {
+          if (pendingImageFile) {
+            const fileName = `${Date.now()}.${pendingImageFile.name.split('.').pop()}`;
+            const { error } = await supabase.storage.from('images').upload(fileName, pendingImageFile);
+            if (error) throw error;
+            const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(fileName);
+            imageUrl = publicUrl;
+          }
+          const itemData = { type, name, model, location, quantity, remarks, image: imageUrl, updated_at: new Date() };
+          if (id) {
+            const { error } = await supabase.from('items').update(itemData).eq('id', id);
+            if (error) throw error;
+          } else {
+            const { error } = await supabase.from('items').insert([itemData]);
+            if (error) throw error;
+          }
+          closeModal();
+          loadItems();
+        } catch (err) {
+          alert('保存失败: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = id ? '更新' : '保存';
         }
-        const itemData = { type, name, model, location, quantity, remarks, image: imageUrl, updated_at: new Date() };
-        if (id) {
-          const { error } = await supabase.from('items').update(itemData).eq('id', id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from('items').insert([itemData]);
-          if (error) throw error;
+      };
+
+      window.deleteItem = async function(id, name) {
+        if (!confirm(`确定删除「${name}」？`)) return;
+        const item = items.find(i=>i.id===id);
+        if (item?.image) {
+          const path = item.image.split('/').pop();
+          await supabase.storage.from('images').remove([path]);
         }
-        closeModal();
+        const { error } = await supabase.from('items').delete().eq('id', id);
+        if (error) { alert('删除失败'); return; }
         loadItems();
-      } catch (err) {
-        alert('保存失败: ' + err.message);
-        btn.disabled = false;
-        btn.textContent = id ? '更新' : '保存';
-      }
-    }
+      };
 
-    async function deleteItem(id, name) {
-      if (!confirm(`确定删除「${name}」？`)) return;
-      const item = items.find(i=>i.id===id);
-      if (item?.image) {
-        const path = item.image.split('/').pop();
-        await supabase.storage.from('images').remove([path]);
-      }
-      const { error } = await supabase.from('items').delete().eq('id', id);
-      if (error) { alert('删除失败'); return; }
-      loadItems();
-    }
+      window.openMoveModal = function(id) {
+        const item = items.find(i=>i.id===id);
+        if (!item) return;
+        document.getElementById('moveId').value = id;
+        document.getElementById('moveInfo').innerHTML = `<strong>${item.name}</strong> · ${item.type}<br>📍 ${item.location} · 📦 库存：${item.quantity}`;
+        document.getElementById('moveQty').max = item.quantity;
+        document.getElementById('moveQty').value = 1;
+        document.getElementById('moveTarget').value = '';
+        document.getElementById('moveModal').style.display = 'flex';
+      };
 
-    function openMoveModal(id) {
-      const item = items.find(i=>i.id===id);
-      if (!item) return;
-      document.getElementById('moveId').value = id;
-      document.getElementById('moveInfo').innerHTML = `<strong>${item.name}</strong> · ${item.type}<br>📍 ${item.location} · 📦 库存：${item.quantity}`;
-      document.getElementById('moveQty').max = item.quantity;
-      document.getElementById('moveQty').value = 1;
-      document.getElementById('moveTarget').value = '';
-      document.getElementById('moveModal').style.display = 'flex';
-    }
-    function closeMoveModal() { document.getElementById('moveModal').style.display = 'none'; }
+      window.closeMoveModal = function() { document.getElementById('moveModal').style.display = 'none'; };
 
-    async function handleMove(e) {
-      e.preventDefault();
-      const id = document.getElementById('moveId').value;
-      const qty = parseInt(document.getElementById('moveQty').value);
-      const target = document.getElementById('moveTarget').value.trim();
-      const source = items.find(i=>i.id===id);
-      if (!source) return;
-      if (qty > source.quantity || qty < 1) { alert('数量错误'); return; }
-      const btn = e.target.querySelector('button[type=submit]');
-      btn.disabled = true; btn.textContent = '调拨中...';
-      try {
-        if (qty === source.quantity) {
-          await supabase.from('items').delete().eq('id', id);
-        } else {
-          await supabase.from('items').update({ quantity: source.quantity - qty, updated_at: new Date() }).eq('id', id);
+      window.handleMove = async function(e) {
+        e.preventDefault();
+        const id = document.getElementById('moveId').value;
+        const qty = parseInt(document.getElementById('moveQty').value);
+        const target = document.getElementById('moveTarget').value.trim();
+        const source = items.find(i=>i.id===id);
+        if (!source) return;
+        if (qty > source.quantity || qty < 1) { alert('数量错误'); return; }
+        const btn = e.target.querySelector('button[type=submit]');
+        btn.disabled = true; btn.textContent = '调拨中...';
+        try {
+          if (qty === source.quantity) {
+            await supabase.from('items').delete().eq('id', id);
+          } else {
+            await supabase.from('items').update({ quantity: source.quantity - qty, updated_at: new Date() }).eq('id', id);
+          }
+          const { data: existing } = await supabase.from('items').select('*').eq('location', target).eq('type', source.type).eq('name', source.name).eq('model', source.model);
+          if (existing && existing.length > 0) {
+            await supabase.from('items').update({ quantity: existing[0].quantity + qty, updated_at: new Date() }).eq('id', existing[0].id);
+          } else {
+            await supabase.from('items').insert([{ type: source.type, name: source.name, model: source.model, location: target, quantity: qty, remarks: source.remarks, image: source.image }]);
+          }
+          closeMoveModal();
+          loadItems();
+        } catch (err) {
+          alert('调拨失败: ' + err.message);
+          btn.disabled = false; btn.textContent = '确认调拨';
         }
-        const { data: existing } = await supabase.from('items').select('*').eq('location', target).eq('type', source.type).eq('name', source.name).eq('model', source.model);
-        if (existing && existing.length > 0) {
-          await supabase.from('items').update({ quantity: existing[0].quantity + qty, updated_at: new Date() }).eq('id', existing[0].id);
-        } else {
-          await supabase.from('items').insert([{ type: source.type, name: source.name, model: source.model, location: target, quantity: qty, remarks: source.remarks, image: source.image }]);
-        }
-        closeMoveModal();
-        loadItems();
-      } catch (err) {
-        alert('调拨失败: ' + err.message);
-        btn.disabled = false; btn.textContent = '确认调拨';
-      }
-    }
+      };
 
-    function exportExcel() {
-      const data = items.map(i=>({ 类型:i.type, 名称:i.name, 型号:i.model, 位置:i.location, 数量:i.quantity, 备注:i.remarks }));
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, '库存');
-      XLSX.writeFile(wb, '库存盘点.xlsx');
-    }
+      window.exportExcel = function() {
+        const data = items.map(i=>({ 类型:i.type, 名称:i.name, 型号:i.model, 位置:i.location, 数量:i.quantity, 备注:i.remarks }));
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '库存');
+        XLSX.writeFile(wb, '库存盘点.xlsx');
+      };
 
-    init();
+      // 把一些函数暴露到全局，供 HTML onclick 使用
+      window.renderItems = renderItems;
+      window.init = init;
+      init();
+    })();
   </script>
 </body>
 </html>
